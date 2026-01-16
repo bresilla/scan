@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.4] - 2026-01-16
+
+### <!-- 0 -->⛰️  Features
+
+- Add advanced validation, error handling, and parsers
+- Enhance argument parsing and command features
+
+### <!-- 3 -->📚 Documentation
+
+- Update and restructure documentation
+
 ## [0.0.3] - 2026-01-16
 
 ### <!-- 0 -->⛰️  Features
