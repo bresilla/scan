@@ -5,8 +5,18 @@
 
 #include <argu/core/types.hpp>
 
+#include <cstdio>
 #include <cstdlib>
 #include <string>
+
+// Platform-specific includes for terminal detection
+#if defined(_WIN32) || defined(_WIN64)
+#include <io.h>
+#include <windows.h>
+#else
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
 
 namespace argu {
 
@@ -150,6 +160,80 @@ namespace argu {
             }
             return false;
         }
+
+        /// Get terminal width (returns default_width if detection fails)
+        inline std::size_t terminal_width(std::size_t default_width = 80) {
+            // Check COLUMNS environment variable first
+            const char *columns = std::getenv("COLUMNS");
+            if (columns) {
+                try {
+                    int width = std::stoi(columns);
+                    if (width > 0) {
+                        return static_cast<std::size_t>(width);
+                    }
+                } catch (...) {
+                    // Fall through to other methods
+                }
+            }
+
+#if defined(_WIN32) || defined(_WIN64)
+            // Windows: use console API
+            CONSOLE_SCREEN_BUFFER_INFO csbi;
+            if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
+                return static_cast<std::size_t>(csbi.srWindow.Right - csbi.srWindow.Left + 1);
+            }
+#elif defined(__unix__) || defined(__APPLE__)
+            // Unix/macOS: use ioctl
+            struct winsize ws;
+            if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+                return static_cast<std::size_t>(ws.ws_col);
+            }
+#endif
+
+            return default_width;
+        }
+
+        /// Get terminal height (returns default_height if detection fails)
+        inline std::size_t terminal_height(std::size_t default_height = 24) {
+            // Check LINES environment variable first
+            const char *lines = std::getenv("LINES");
+            if (lines) {
+                try {
+                    int height = std::stoi(lines);
+                    if (height > 0) {
+                        return static_cast<std::size_t>(height);
+                    }
+                } catch (...) {
+                    // Fall through to other methods
+                }
+            }
+
+#if defined(_WIN32) || defined(_WIN64)
+            // Windows: use console API
+            CONSOLE_SCREEN_BUFFER_INFO csbi;
+            if (GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
+                return static_cast<std::size_t>(csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
+            }
+#elif defined(__unix__) || defined(__APPLE__)
+            // Unix/macOS: use ioctl
+            struct winsize ws;
+            if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0) {
+                return static_cast<std::size_t>(ws.ws_row);
+            }
+#endif
+
+            return default_height;
+        }
+
+        /// Check if stdout is a terminal (TTY)
+        inline bool is_tty() {
+#if defined(_WIN32) || defined(_WIN64)
+            return _isatty(_fileno(stdout)) != 0;
+#else
+            return isatty(STDOUT_FILENO) != 0;
+#endif
+        }
+
     } // namespace ansi
 
     /// Theme for help output styling

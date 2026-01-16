@@ -1843,3 +1843,540 @@ TEST_SUITE("Hidden Subcommands") {
         CHECK(result.message().find("internal") == std::string::npos);
     }
 }
+
+// =============================================================================
+// Error Aggregation Tests
+// =============================================================================
+
+TEST_SUITE("Error Aggregation") {
+
+    TEST_CASE("FirstError mode stops at first error") {
+        std::string input;
+        std::string output;
+
+        auto cmd = argu::Command("app")
+            .error_mode(argu::ErrorMode::FirstError)
+            .arg(argu::Arg("input").long_name("input").required().value_of(input))
+            .arg(argu::Arg("output").long_name("output").required().value_of(output));
+
+        // Missing both required args - should only report first
+        auto result = cmd.parse(make_args({}));
+        CHECK(!result.success());
+        // Should mention missing argument but only one error
+        CHECK(result.message().find("Missing required") != std::string::npos);
+        CHECK(result.message().find("Multiple errors") == std::string::npos);
+    }
+
+    TEST_CASE("Aggregate mode collects multiple errors") {
+        std::string input;
+        std::string output;
+
+        auto cmd = argu::Command("app")
+            .error_mode(argu::ErrorMode::Aggregate)
+            .arg(argu::Arg("input").long_name("input").required().value_of(input))
+            .arg(argu::Arg("output").long_name("output").required().value_of(output));
+
+        // Missing both required args
+        auto result = cmd.parse(make_args({}));
+        CHECK(!result.success());
+        // Should report multiple errors
+        CHECK(result.message().find("Multiple errors") != std::string::npos);
+        CHECK(result.message().find("input") != std::string::npos);
+        CHECK(result.message().find("output") != std::string::npos);
+    }
+
+    TEST_CASE("Aggregate mode with single error") {
+        std::string input;
+        std::string output;
+
+        auto cmd = argu::Command("app")
+            .error_mode(argu::ErrorMode::Aggregate)
+            .arg(argu::Arg("input").long_name("input").required().value_of(input))
+            .arg(argu::Arg("output").long_name("output").value_of(output));
+
+        // Missing only one required arg
+        auto result = cmd.parse(make_args({}));
+        CHECK(!result.success());
+        // Single error should not say "Multiple errors"
+        CHECK(result.message().find("Multiple errors") == std::string::npos);
+        CHECK(result.message().find("input") != std::string::npos);
+    }
+
+    TEST_CASE("Aggregate mode collects constraint violations") {
+        bool verbose = false;
+        bool quiet = false;
+        std::string required_opt;
+
+        auto cmd = argu::Command("app")
+            .error_mode(argu::ErrorMode::Aggregate)
+            .arg(argu::Arg("verbose").short_name('v').flag(verbose))
+            .arg(argu::Arg("quiet").short_name('q').flag(quiet).conflicts_with("verbose"))
+            .arg(argu::Arg("required").long_name("required").required().value_of(required_opt));
+
+        // Both conflict AND missing required
+        auto result = cmd.parse(make_args({"-v", "-q"}));
+        CHECK(!result.success());
+        CHECK(result.message().find("Multiple errors") != std::string::npos);
+        CHECK(result.message().find("cannot be used together") != std::string::npos);
+        CHECK(result.message().find("Missing required") != std::string::npos);
+    }
+
+    TEST_CASE("Aggregate mode with group violations") {
+        std::string opt1;
+        std::string opt2;
+        std::string opt3;
+
+        auto cmd = argu::Command("app")
+            .error_mode(argu::ErrorMode::Aggregate)
+            .arg(argu::Arg("opt1").long_name("opt1").value_of(opt1))
+            .arg(argu::Arg("opt2").long_name("opt2").value_of(opt2))
+            .arg(argu::Arg("opt3").long_name("opt3").required().value_of(opt3))
+            .group(argu::ArgGroup("mutex").mutually_exclusive().args({"opt1", "opt2"}));
+
+        // Mutex violation AND missing required
+        auto result = cmd.parse(make_args({"--opt1=a", "--opt2=b"}));
+        CHECK(!result.success());
+        CHECK(result.message().find("Multiple errors") != std::string::npos);
+    }
+
+    TEST_CASE("No errors in aggregate mode") {
+        std::string input;
+
+        auto cmd = argu::Command("app")
+            .error_mode(argu::ErrorMode::Aggregate)
+            .arg(argu::Arg("input").long_name("input").value_of(input));
+
+        auto result = cmd.parse(make_args({"--input=test"}));
+        CHECK(result.success());
+    }
+}
+
+// =============================================================================
+// Conditional Requirements Tests
+// =============================================================================
+
+TEST_SUITE("Conditional Requirements") {
+
+    TEST_CASE("required_unless - satisfied when alternative present") {
+        std::string input;
+        std::string stdin_flag;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("input")
+                .long_name("input")
+                .value_of(input)
+                .required_unless("stdin"))
+            .arg(argu::Arg("stdin")
+                .long_name("stdin")
+                .value_of(stdin_flag));
+
+        // Should succeed: --stdin is present, so --input is not required
+        auto result = cmd.parse(make_args({"--stdin=yes"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("required_unless - fails when no alternative") {
+        std::string input;
+        std::string stdin_flag;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("input")
+                .long_name("input")
+                .value_of(input)
+                .required_unless("stdin"))
+            .arg(argu::Arg("stdin")
+                .long_name("stdin")
+                .value_of(stdin_flag));
+
+        // Should fail: neither --input nor --stdin provided
+        auto result = cmd.parse(make_args({}));
+        CHECK(!result.success());
+        CHECK(result.message().find("input") != std::string::npos);
+    }
+
+    TEST_CASE("required_unless - multiple alternatives") {
+        std::string input;
+        std::string file;
+        std::string url;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("input")
+                .long_name("input")
+                .value_of(input)
+                .required_unless({"file", "url"}))
+            .arg(argu::Arg("file").long_name("file").value_of(file))
+            .arg(argu::Arg("url").long_name("url").value_of(url));
+
+        // Should succeed: --url is present
+        auto result = cmd.parse(make_args({"--url=http://example.com"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("required_if_eq - triggered when condition met") {
+        std::string format;
+        std::string output;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("format")
+                .long_name("format")
+                .value_of(format)
+                .choices({"json", "csv", "text"}))
+            .arg(argu::Arg("output")
+                .long_name("output")
+                .value_of(output)
+                .required_if_eq("format", "csv"));
+
+        // Should fail: format=csv requires output
+        auto result = cmd.parse(make_args({"--format=csv"}));
+        CHECK(!result.success());
+        CHECK(result.message().find("output") != std::string::npos);
+    }
+
+    TEST_CASE("required_if_eq - not triggered when condition not met") {
+        std::string format;
+        std::string output;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("format")
+                .long_name("format")
+                .value_of(format)
+                .choices({"json", "csv", "text"}))
+            .arg(argu::Arg("output")
+                .long_name("output")
+                .value_of(output)
+                .required_if_eq("format", "csv"));
+
+        // Should succeed: format=json doesn't require output
+        auto result = cmd.parse(make_args({"--format=json"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("required_if_eq - satisfied when provided") {
+        std::string format;
+        std::string output;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("format")
+                .long_name("format")
+                .value_of(format)
+                .choices({"json", "csv", "text"}))
+            .arg(argu::Arg("output")
+                .long_name("output")
+                .value_of(output)
+                .required_if_eq("format", "csv"));
+
+        // Should succeed: format=csv and output provided
+        auto result = cmd.parse(make_args({"--format=csv", "--output=data.csv"}));
+        CHECK(result.success());
+        CHECK(output == "data.csv");
+    }
+
+    TEST_CASE("requires_if - triggered when value matches") {
+        std::string mode;
+        std::string config;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("mode")
+                .long_name("mode")
+                .value_of(mode)
+                .requires_if("config", "custom"))
+            .arg(argu::Arg("config")
+                .long_name("config")
+                .value_of(config));
+
+        // Should fail: mode=custom requires config
+        auto result = cmd.parse(make_args({"--mode=custom"}));
+        CHECK(!result.success());
+        CHECK(result.message().find("config") != std::string::npos);
+    }
+
+    TEST_CASE("requires_if - not triggered when value doesn't match") {
+        std::string mode;
+        std::string config;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("mode")
+                .long_name("mode")
+                .value_of(mode)
+                .requires_if("config", "custom"))
+            .arg(argu::Arg("config")
+                .long_name("config")
+                .value_of(config));
+
+        // Should succeed: mode=auto doesn't require config
+        auto result = cmd.parse(make_args({"--mode=auto"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("default_value_if - applies conditional default") {
+        std::string format;
+        std::string extension;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("format")
+                .long_name("format")
+                .value_of(format)
+                .choices({"json", "csv", "text"}))
+            .arg(argu::Arg("extension")
+                .long_name("ext")
+                .value_of(extension)
+                .default_value_if("format", "json", ".json")
+                .default_value_if("format", "csv", ".csv")
+                .default_value(".txt"));
+
+        // Should get .json extension when format=json
+        auto result = cmd.parse(make_args({"--format=json"}));
+        CHECK(result.success());
+        CHECK(extension == ".json");
+    }
+
+    TEST_CASE("default_value_if - falls back to regular default") {
+        std::string format;
+        std::string extension;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("format")
+                .long_name("format")
+                .value_of(format)
+                .choices({"json", "csv", "text"}))
+            .arg(argu::Arg("extension")
+                .long_name("ext")
+                .value_of(extension)
+                .default_value_if("format", "json", ".json")
+                .default_value(".txt"));
+
+        // Should get .txt extension when format=text (no conditional match)
+        auto result = cmd.parse(make_args({"--format=text"}));
+        CHECK(result.success());
+        CHECK(extension == ".txt");
+    }
+}
+
+// =============================================================================
+// Edge Cases Tests
+// =============================================================================
+
+TEST_SUITE("Edge Cases") {
+
+    TEST_CASE("Empty string value") {
+        std::string value;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("opt").long_name("opt").value_of(value));
+
+        auto result = cmd.parse(make_args({"--opt="}));
+        CHECK(result.success());
+        CHECK(value.empty());
+    }
+
+    TEST_CASE("Value with equals sign") {
+        std::string value;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("opt").long_name("opt").value_of(value));
+
+        auto result = cmd.parse(make_args({"--opt=key=value"}));
+        CHECK(result.success());
+        CHECK(value == "key=value");
+    }
+
+    TEST_CASE("Value with spaces using quotes") {
+        std::string value;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("opt").long_name("opt").value_of(value));
+
+        auto result = cmd.parse(make_args({"--opt=hello world"}));
+        CHECK(result.success());
+        CHECK(value == "hello world");
+    }
+
+    TEST_CASE("Multiple short flags combined") {
+        bool a = false, b = false, c = false;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("a").short_name('a').flag(a))
+            .arg(argu::Arg("b").short_name('b').flag(b))
+            .arg(argu::Arg("c").short_name('c').flag(c));
+
+        auto result = cmd.parse(make_args({"-abc"}));
+        CHECK(result.success());
+        CHECK(a);
+        CHECK(b);
+        CHECK(c);
+    }
+
+    TEST_CASE("Short option with attached value") {
+        std::string value;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("opt").short_name('o').value_of(value));
+
+        auto result = cmd.parse(make_args({"-ovalue"}));
+        CHECK(result.success());
+        CHECK(value == "value");
+    }
+
+    TEST_CASE("Double dash stops option parsing") {
+        std::string opt;
+        std::string pos;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("opt").long_name("opt").value_of(opt))
+            .arg(argu::Arg("pos").positional().value_of(pos));
+
+        auto result = cmd.parse(make_args({"--", "--opt"}));
+        CHECK(result.success());
+        CHECK(pos == "--opt");
+        CHECK(opt.empty());
+    }
+
+    TEST_CASE("Counting flag multiple times") {
+        int verbosity = 0;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("verbose").short_name('v').count(verbosity));
+
+        auto result = cmd.parse(make_args({"-v", "-v", "-v", "-v"}));
+        CHECK(result.success());
+        CHECK(verbosity == 4);
+    }
+
+    TEST_CASE("Value delimiter parsing") {
+        std::vector<std::string> values;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("items")
+                .long_name("items")
+                .value_of(values)
+                .value_delimiter(','));
+
+        auto result = cmd.parse(make_args({"--items=a,b,c,d"}));
+        CHECK(result.success());
+        CHECK(values.size() == 4);
+        CHECK(values[0] == "a");
+        CHECK(values[3] == "d");
+    }
+
+    TEST_CASE("Implicit value when no value provided") {
+        std::string level;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("debug")
+                .long_name("debug")
+                .value_of(level)
+                .implicit_value("info")
+                .default_value("none"));
+
+        // With just --debug, should get implicit value
+        auto result = cmd.parse(make_args({"--debug"}));
+        CHECK(result.success());
+        CHECK(level == "info");
+    }
+
+    TEST_CASE("Hex number parsing") {
+        int value = 0;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("num").long_name("num").value_of(value));
+
+        auto result = cmd.parse(make_args({"--num=0xFF"}));
+        CHECK(result.success());
+        CHECK(value == 255);
+    }
+
+    TEST_CASE("Binary number parsing") {
+        int value = 0;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("num").long_name("num").value_of(value));
+
+        auto result = cmd.parse(make_args({"--num=0b1010"}));
+        CHECK(result.success());
+        CHECK(value == 10);
+    }
+
+    TEST_CASE("Octal number parsing") {
+        int value = 0;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("num").long_name("num").value_of(value));
+
+        auto result = cmd.parse(make_args({"--num=0o755"}));
+        CHECK(result.success());
+        CHECK(value == 493);
+    }
+
+    TEST_CASE("Negative number as value") {
+        int value = 0;
+        auto cmd = argu::Command("app")
+            .allow_negative_numbers(true)
+            .arg(argu::Arg("num").long_name("num").value_of(value));
+
+        auto result = cmd.parse(make_args({"--num=-42"}));
+        CHECK(result.success());
+        CHECK(value == -42);
+    }
+
+    TEST_CASE("Multiple positional arguments") {
+        std::string src, dest;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("source").positional().index(0).value_of(src).required())
+            .arg(argu::Arg("dest").positional().index(1).value_of(dest).required());
+
+        auto result = cmd.parse(make_args({"file1.txt", "file2.txt"}));
+        CHECK(result.success());
+        CHECK(src == "file1.txt");
+        CHECK(dest == "file2.txt");
+    }
+
+    TEST_CASE("Subcommand with alias prefix matching") {
+        auto cmd = argu::Command("app")
+            .allow_subcommand_prefix(true)
+            .subcommand(argu::Command("status").about("Show status"))
+            .subcommand(argu::Command("start").about("Start service"));
+
+        // "sta" is ambiguous (status vs start)
+        auto result = cmd.parse(make_args({"sta"}));
+        CHECK(!result.success());
+    }
+
+    TEST_CASE("Subcommand with unambiguous prefix") {
+        auto cmd = argu::Command("app")
+            .allow_subcommand_prefix(true)
+            .subcommand(argu::Command("status").about("Show status"))
+            .subcommand(argu::Command("stop").about("Stop service"));
+
+        // "sta" uniquely matches "status"
+        auto result = cmd.parse(make_args({"sta"}));
+        CHECK(result.success());
+        CHECK(cmd.matches().subcommand().value() == "status");
+    }
+
+    TEST_CASE("Boolean value parsing") {
+        bool flag = false;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("enabled").long_name("enabled").value_of(flag));
+
+        auto result = cmd.parse(make_args({"--enabled=true"}));
+        CHECK(result.success());
+        CHECK(flag == true);
+
+        flag = true;
+        result = cmd.parse(make_args({"--enabled=false"}));
+        CHECK(result.success());
+        CHECK(flag == false);
+    }
+
+    TEST_CASE("Float value parsing") {
+        double value = 0.0;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("rate").long_name("rate").value_of(value));
+
+        auto result = cmd.parse(make_args({"--rate=3.14159"}));
+        CHECK(result.success());
+        CHECK(value == doctest::Approx(3.14159));
+    }
+
+    TEST_CASE("Multiple values for same option") {
+        std::vector<std::string> files;
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("file")
+                .short_name('f')
+                .long_name("file")
+                .value_of(files)
+                .takes_one_or_more());
+
+        auto result = cmd.parse(make_args({"-f", "a.txt", "-f", "b.txt", "-f", "c.txt"}));
+        CHECK(result.success());
+        CHECK(files.size() == 3);
+    }
+}

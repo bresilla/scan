@@ -96,6 +96,22 @@ namespace argu {
         FirstWins, ///< First value wins
     };
 
+    /// Multi-option policy (how to handle repeated options)
+    enum class OptionPolicy {
+        TakeLast,  ///< Use last value (default, POSIX-style)
+        TakeFirst, ///< Use first value
+        TakeAll,   ///< Collect all values into vector
+        Join,      ///< Join string values with delimiter
+        Sum,       ///< Sum numeric values
+        Count,     ///< Just count occurrences
+    };
+
+    /// Error handling mode
+    enum class ErrorMode {
+        FirstError, ///< Stop at first error (default)
+        Aggregate,  ///< Collect all errors before reporting
+    };
+
     /// Stdin/stdout handling mode
     enum class StdioMode {
         None,   ///< No special handling

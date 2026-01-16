@@ -4,6 +4,7 @@
 /// @brief Error types for argument parsing
 
 #include <exception>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -212,7 +213,8 @@ namespace argu {
         std::vector<std::string> m_used_args;
 
         static std::string format_message(const std::string &group_name, const std::vector<std::string> &used_args) {
-            std::string msg = "The following arguments cannot be used together (mutually exclusive group '" + group_name + "'):\n";
+            std::string msg =
+                "The following arguments cannot be used together (mutually exclusive group '" + group_name + "'):\n";
             for (const auto &arg : used_args) {
                 msg += "    --" + arg + "\n";
             }
@@ -336,6 +338,72 @@ namespace argu {
       public:
         explicit CompletionRequested(std::string completion_script)
             : Error(std::move(completion_script), ExitCode::Success) {}
+    };
+
+    /// Aggregated errors - holds multiple errors when using ErrorMode::Aggregate
+    class AggregatedErrors : public Error {
+      public:
+        AggregatedErrors() : Error("Multiple errors occurred", ExitCode::UsageError) {}
+
+        explicit AggregatedErrors(std::vector<std::string> error_messages)
+            : Error(format_message(error_messages), ExitCode::UsageError), m_error_messages(std::move(error_messages)) {
+        }
+
+        // Copy operations - copy the messages
+        AggregatedErrors(const AggregatedErrors &other)
+            : Error(other.m_message, other.m_code), m_error_messages(other.m_error_messages) {}
+
+        AggregatedErrors &operator=(const AggregatedErrors &other) {
+            if (this != &other) {
+                m_message = other.m_message;
+                m_code = other.m_code;
+                m_error_messages = other.m_error_messages;
+            }
+            return *this;
+        }
+
+        // Move operations
+        AggregatedErrors(AggregatedErrors &&) noexcept = default;
+        AggregatedErrors &operator=(AggregatedErrors &&) noexcept = default;
+
+        /// Add an error message to the collection
+        void add(const std::string &error_message) {
+            m_error_messages.push_back(error_message);
+            m_message = format_message(m_error_messages);
+        }
+
+        /// Add an error to the collection (takes message from error)
+        template <typename E> void add_error(E &&error) {
+            m_error_messages.push_back(error.message());
+            m_message = format_message(m_error_messages);
+        }
+
+        /// Check if any errors have been collected
+        bool empty() const noexcept { return m_error_messages.empty(); }
+
+        /// Get the number of errors
+        std::size_t count() const noexcept { return m_error_messages.size(); }
+
+        /// Get individual error messages
+        const std::vector<std::string> &messages() const noexcept { return m_error_messages; }
+
+      private:
+        std::vector<std::string> m_error_messages;
+
+        static std::string format_message(const std::vector<std::string> &errors) {
+            if (errors.empty()) {
+                return "No errors";
+            }
+            if (errors.size() == 1) {
+                return errors[0];
+            }
+
+            std::string msg = "Multiple errors occurred (" + std::to_string(errors.size()) + "):\n";
+            for (std::size_t i = 0; i < errors.size(); ++i) {
+                msg += "\n  " + std::to_string(i + 1) + ". " + errors[i];
+            }
+            return msg;
+        }
     };
 
 } // namespace argu

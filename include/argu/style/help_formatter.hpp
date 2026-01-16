@@ -204,14 +204,13 @@ namespace argu {
 
             // Sort groups by command's group order, then alphabetically
             std::vector<std::pair<std::string, std::vector<const Arg *>>> sorted_groups(groups.begin(), groups.end());
-            std::stable_sort(sorted_groups.begin(), sorted_groups.end(),
-                             [this](const auto &a, const auto &b) {
-                                 int order_a = m_cmd.get_group_order(a.first);
-                                 int order_b = m_cmd.get_group_order(b.first);
-                                 if (order_a != order_b)
-                                     return order_a < order_b;
-                                 return a.first < b.first;
-                             });
+            std::stable_sort(sorted_groups.begin(), sorted_groups.end(), [this](const auto &a, const auto &b) {
+                int order_a = m_cmd.get_group_order(a.first);
+                int order_b = m_cmd.get_group_order(b.first);
+                if (order_a != order_b)
+                    return order_a < order_b;
+                return a.first < b.first;
+            });
 
             // Format option groups in sorted order
             for (const auto &[group_name, args] : sorted_groups) {
@@ -386,8 +385,9 @@ namespace argu {
                 return;
 
             // Sort by order
-            std::stable_sort(sections.begin(), sections.end(),
-                             [](const Command::HelpSection &a, const Command::HelpSection &b) { return a.order < b.order; });
+            std::stable_sort(
+                sections.begin(), sections.end(),
+                [](const Command::HelpSection &a, const Command::HelpSection &b) { return a.order < b.order; });
 
             for (const auto &section : sections) {
                 oss << colorize(section.title + ":", m_theme.section_header, m_theme.use_bold_headers) << "\n";

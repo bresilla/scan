@@ -525,6 +525,12 @@ namespace argu {
             return *this;
         }
 
+        /// Set error handling mode (FirstError or Aggregate)
+        Command &error_mode(ErrorMode mode) {
+            m_error_mode = mode;
+            return *this;
+        }
+
         /// Display help on error
         Command &help_on_error(bool show = true) {
             m_help_on_error = show;
@@ -595,6 +601,7 @@ namespace argu {
         bool allows_hyphen_values() const { return m_allow_hyphen_values; }
         bool ignores_errors() const { return m_ignore_errors; }
         bool shows_help_on_error() const { return m_help_on_error; }
+        ErrorMode get_error_mode() const { return m_error_mode; }
         std::size_t get_max_term_width() const { return m_max_term_width; }
 
         const Arg *find_arg_by_name(const std::string &name) const {
@@ -658,6 +665,7 @@ namespace argu {
         bool m_ignore_errors = false;
         bool m_help_on_error = true;
         bool m_hidden = false;
+        ErrorMode m_error_mode = ErrorMode::FirstError;
 
         void add_default_help() {
             m_args.push_back(Arg("help")

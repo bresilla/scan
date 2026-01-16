@@ -465,7 +465,8 @@ namespace argu {
         /// Validator for UUID v4 (random)
         inline Validator uuid_v4() {
             return [](const std::string &value) -> std::optional<std::string> {
-                std::regex re(R"(^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$)");
+                std::regex re(
+                    R"(^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$)");
                 if (!std::regex_match(value, re)) {
                     return "invalid UUID v4 format";
                 }

@@ -58,6 +58,11 @@ namespace argu {
                 // Validate argument groups
                 validate_groups();
 
+                // If in aggregate mode and we collected errors, throw them now
+                if (m_cmd.get_error_mode() == ErrorMode::Aggregate && !m_aggregated_errors.empty()) {
+                    throw m_aggregated_errors;
+                }
+
                 // Apply defaults for missing values
                 apply_defaults();
 
@@ -73,6 +78,8 @@ namespace argu {
                 return ParseResult(true, 0, e.message());
             } catch (const CompletionRequested &e) {
                 return ParseResult(true, 0, e.message());
+            } catch (const AggregatedErrors &e) {
+                return ParseResult(e);
             } catch (const Error &e) {
                 return ParseResult(e);
             }
@@ -81,7 +88,17 @@ namespace argu {
       private:
         Command &m_cmd;
         std::size_t m_positional_index = 0;
-        bool m_positionals_only = false; // After seeing --
+        bool m_positionals_only = false;      // After seeing --
+        AggregatedErrors m_aggregated_errors; // For ErrorMode::Aggregate
+
+        /// Add an error (either throw immediately or collect for later)
+        template <typename E> void add_error(E &&error) {
+            if (m_cmd.get_error_mode() == ErrorMode::Aggregate) {
+                m_aggregated_errors.add_error(std::forward<E>(error));
+            } else {
+                throw std::forward<E>(error);
+            }
+        }
 
         void ensure_default_flags() {
             // Check if help already exists
@@ -693,10 +710,41 @@ namespace argu {
 
         void validate_required() {
             for (const auto &arg : m_cmd.m_args) {
-                if (arg.is_required() && !m_cmd.m_matches.contains(arg.name())) {
-                    // Check if default was applied
+                bool arg_present = m_cmd.m_matches.contains(arg.name());
+                bool arg_required = arg.is_required();
+
+                // Check required_unless: arg is required unless one of the listed args is present
+                if (!arg_present && !arg.get_required_unless().empty()) {
+                    bool any_unless_present = false;
+                    for (const auto &unless_arg : arg.get_required_unless()) {
+                        if (m_cmd.m_matches.contains(unless_arg)) {
+                            any_unless_present = true;
+                            break;
+                        }
+                    }
+                    if (!any_unless_present && !arg.default_val()) {
+                        add_error(MissingRequiredError(arg.name()));
+                        continue;
+                    }
+                }
+
+                // Check required_if_eq: arg is required if another arg equals specific value
+                if (!arg_present) {
+                    for (const auto &[other_arg, other_value] : arg.get_required_if_eq()) {
+                        auto match_value = m_cmd.m_matches.get_one(other_arg);
+                        if (match_value && *match_value == other_value) {
+                            if (!arg.default_val()) {
+                                add_error(MissingRequiredError(arg.name()));
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Check basic required
+                if (arg_required && !arg_present) {
                     if (!arg.default_val()) {
-                        throw MissingRequiredError(arg.name());
+                        add_error(MissingRequiredError(arg.name()));
                     }
                 }
             }
@@ -709,7 +757,7 @@ namespace argu {
                         available.push_back(sub->name());
                     }
                 }
-                throw MissingSubcommandError(available);
+                add_error(MissingSubcommandError(available));
             }
         }
 
@@ -721,14 +769,24 @@ namespace argu {
                 // Check conflicts
                 for (const auto &conflict : arg.get_conflicts()) {
                     if (m_cmd.m_matches.contains(conflict)) {
-                        throw ConflictError(arg.name(), conflict);
+                        add_error(ConflictError(arg.name(), conflict));
                     }
                 }
 
                 // Check requires
                 for (const auto &req : arg.get_requires()) {
                     if (!m_cmd.m_matches.contains(req)) {
-                        throw DependencyError(arg.name(), req);
+                        add_error(DependencyError(arg.name(), req));
+                    }
+                }
+
+                // Check requires_if: this arg requires another arg if it has specific value
+                for (const auto &[req_arg, req_value] : arg.get_requires_if()) {
+                    auto this_value = m_cmd.m_matches.get_one(arg.name());
+                    if (this_value && *this_value == req_value) {
+                        if (!m_cmd.m_matches.contains(req_arg)) {
+                            add_error(DependencyError(arg.name(), req_arg));
+                        }
                     }
                 }
             }
@@ -750,19 +808,19 @@ namespace argu {
                 switch (group.get_type()) {
                 case GroupType::MutuallyExclusive:
                     if (present.size() > 1) {
-                        throw MutexGroupError(group.get_name(), present);
+                        add_error(MutexGroupError(group.get_name(), present));
                     }
                     break;
 
                 case GroupType::RequiredTogether:
                     if (!present.empty() && !missing.empty()) {
-                        throw RequiredTogetherError(group.get_name(), present, missing);
+                        add_error(RequiredTogetherError(group.get_name(), present, missing));
                     }
                     break;
 
                 case GroupType::AtLeastOne:
                     if (group.is_required() && present.empty()) {
-                        throw AtLeastOneRequiredError(group.get_name(), group.get_args());
+                        add_error(AtLeastOneRequiredError(group.get_name(), group.get_args()));
                     }
                     break;
 
@@ -803,7 +861,26 @@ namespace argu {
 
         void apply_defaults() {
             for (const auto &arg : m_cmd.m_args) {
-                if (!m_cmd.m_matches.contains(arg.name()) && arg.default_val()) {
+                if (m_cmd.m_matches.contains(arg.name()))
+                    continue;
+
+                // Check default_value_if: conditional default based on another arg's value
+                bool conditional_default_applied = false;
+                for (const auto &[other_arg, other_value, default_val] : arg.get_default_value_if()) {
+                    auto match_value = m_cmd.m_matches.get_one(other_arg);
+                    if (match_value && *match_value == other_value) {
+                        auto &match = m_cmd.m_matches.get_or_create_match(arg.name());
+                        match.values.push_back(default_val);
+                        match.occurrences = 1;
+                        match.source = ValueSource::Default;
+                        arg.apply_value(default_val);
+                        conditional_default_applied = true;
+                        break;
+                    }
+                }
+
+                // Apply regular default if no conditional default was applied
+                if (!conditional_default_applied && arg.default_val()) {
                     arg.apply_default();
                     auto &match = m_cmd.m_matches.get_or_create_match(arg.name());
                     match.values.push_back(*arg.default_val());

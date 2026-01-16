@@ -77,6 +77,10 @@
 // Config file support
 #include <argu/config/config_parser.hpp>
 
+// Human-friendly parsers
+#include <argu/parsers/duration.hpp>
+#include <argu/parsers/size.hpp>
+
 // Parser (must be last as it implements Command methods)
 #include <argu/core/parser.hpp>
 
