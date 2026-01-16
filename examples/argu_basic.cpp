@@ -1,7 +1,7 @@
 /// @file argue_basic.cpp
 /// @brief Basic argument parsing demonstration with Argue library
 
-#include <argue/argue.hpp>
+#include <argu/argu.hpp>
 #include <iostream>
 #include <vector>
 
@@ -13,28 +13,28 @@ int main(int argc, char *argv[]) {
     std::vector<std::string> files;
 
     // Build the command
-    auto cmd = argue::Command("argue_basic")
+    auto cmd = argu::Command("argue_basic")
                    .version("1.0.0")
                    .about("A basic example demonstrating the Argue argument parsing library")
-                   .arg(argue::Arg("name")
+                   .arg(argu::Arg("name")
                             .positional()
                             .help("Your name")
                             .required()
                             .value_of(name)
                             .value_name("NAME"))
-                   .arg(argue::Arg("count")
+                   .arg(argu::Arg("count")
                             .short_name('c')
                             .long_name("count")
                             .help("Number of times to greet")
                             .value_of(count)
                             .default_value("1")
                             .value_name("NUM"))
-                   .arg(argue::Arg("verbose")
+                   .arg(argu::Arg("verbose")
                             .short_name('v')
                             .long_name("verbose")
                             .help("Enable verbose output")
                             .flag(verbose))
-                   .arg(argue::Arg("files")
+                   .arg(argu::Arg("files")
                             .short_name('f')
                             .long_name("file")
                             .help("Input files to process")

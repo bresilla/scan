@@ -1,7 +1,7 @@
 /// @file argue_subcommands.cpp
 /// @brief Demonstrates subcommand support in Argue (similar to git, cargo, etc.)
 
-#include <argue/argue.hpp>
+#include <argu/argu.hpp>
 #include <iostream>
 
 int main(int argc, char *argv[]) {
@@ -18,44 +18,44 @@ int main(int argc, char *argv[]) {
     std::string list_format = "table";
 
     // Build 'add' subcommand
-    auto add_cmd = argue::Command("add")
+    auto add_cmd = argu::Command("add")
                        .about("Add a new item")
-                       .arg(argue::Arg("name")
+                       .arg(argu::Arg("name")
                                 .positional()
                                 .required()
                                 .help("Name of the item to add")
                                 .value_of(add_name))
-                       .arg(argue::Arg("force")
+                       .arg(argu::Arg("force")
                                 .short_name('f')
                                 .long_name("force")
                                 .help("Force add even if item exists")
                                 .flag(add_force));
 
     // Build 'remove' subcommand
-    auto remove_cmd = argue::Command("remove")
+    auto remove_cmd = argu::Command("remove")
                           .about("Remove an existing item")
                           .alias("rm") // Can use 'rm' as alias
-                          .arg(argue::Arg("name")
+                          .arg(argu::Arg("name")
                                    .positional()
                                    .required()
                                    .help("Name of the item to remove")
                                    .value_of(remove_name))
-                          .arg(argue::Arg("recursive")
+                          .arg(argu::Arg("recursive")
                                    .short_name('r')
                                    .long_name("recursive")
                                    .help("Remove recursively")
                                    .flag(remove_recursive));
 
     // Build 'list' subcommand
-    auto list_cmd = argue::Command("list")
+    auto list_cmd = argu::Command("list")
                         .about("List all items")
                         .alias("ls")
-                        .arg(argue::Arg("all")
+                        .arg(argu::Arg("all")
                                  .short_name('a')
                                  .long_name("all")
                                  .help("Show all items including hidden")
                                  .flag(list_all))
-                        .arg(argue::Arg("format")
+                        .arg(argu::Arg("format")
                                  .long_name("format")
                                  .help("Output format")
                                  .value_of(list_format)
@@ -65,10 +65,10 @@ int main(int argc, char *argv[]) {
     // Build main command with subcommands
     bool global_verbose = false;
 
-    auto cmd = argue::Command("argue_subcommands")
+    auto cmd = argu::Command("argue_subcommands")
                    .version("1.0.0")
                    .about("A demo showing subcommand support (like git, cargo)")
-                   .arg(argue::Arg("verbose")
+                   .arg(argu::Arg("verbose")
                             .short_name('v')
                             .long_name("verbose")
                             .help("Enable verbose output")

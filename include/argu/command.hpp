@@ -3,8 +3,8 @@
 /// @file command.hpp
 /// @brief Command and subcommand definitions (CLAP-style)
 
-#include <argue/arg.hpp>
-#include <argue/error.hpp>
+#include <argu/arg.hpp>
+#include <argu/error.hpp>
 
 #include <algorithm>
 #include <functional>
@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-namespace argue {
+namespace argu {
 
     /// Forward declaration
     class Parser;
@@ -446,4 +446,4 @@ namespace argue {
         }
     };
 
-} // namespace argue
+} // namespace argu

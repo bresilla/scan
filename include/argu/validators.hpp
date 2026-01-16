@@ -3,7 +3,7 @@
 /// @file validators.hpp
 /// @brief Built-in validators for argument values
 
-#include <argue/arg.hpp>
+#include <argu/arg.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -12,7 +12,7 @@
 #include <regex>
 #include <string>
 
-namespace argue {
+namespace argu {
 
     /// Namespace for built-in validators
     namespace validators {
@@ -284,4 +284,4 @@ namespace argue {
 
     } // namespace validators
 
-} // namespace argue
+} // namespace argu

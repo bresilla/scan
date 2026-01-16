@@ -3,7 +3,7 @@
 /// @file arg.hpp
 /// @brief Argument definition with builder pattern (CLAP-style)
 
-#include <argue/error.hpp>
+#include <argu/error.hpp>
 
 #include <any>
 #include <charconv>
@@ -18,7 +18,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace argue {
+namespace argu {
 
     /// Forward declarations
     class Command;
@@ -562,4 +562,4 @@ namespace argue {
         TargetType m_target_type = TargetType::None;
     };
 
-} // namespace argue
+} // namespace argu

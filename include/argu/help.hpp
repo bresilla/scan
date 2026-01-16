@@ -3,8 +3,8 @@
 /// @file help.hpp
 /// @brief Help text formatting and generation
 
-#include <argue/arg.hpp>
-#include <argue/command.hpp>
+#include <argu/arg.hpp>
+#include <argu/command.hpp>
 
 #include <algorithm>
 #include <iomanip>
@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace argue {
+namespace argu {
 
     /// Help formatter configuration
     struct HelpConfig {
@@ -361,4 +361,4 @@ namespace argue {
         return oss.str();
     }
 
-} // namespace argue
+} // namespace argu

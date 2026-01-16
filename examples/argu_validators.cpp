@@ -1,7 +1,7 @@
 /// @file argue_validators.cpp
 /// @brief Demonstrates validators and advanced argument features in Argue
 
-#include <argue/argue.hpp>
+#include <argu/argu.hpp>
 #include <iostream>
 
 int main(int argc, char *argv[]) {
@@ -15,21 +15,21 @@ int main(int argc, char *argv[]) {
 
     // Build command with validators
     auto cmd =
-        argue::Command("argue_validators")
+        argu::Command("argue_validators")
             .version("1.0.0")
             .about("Demonstrates argument validation features")
 
             // File that must exist
-            .arg(argue::Arg("input")
+            .arg(argu::Arg("input")
                      .short_name('i')
                      .long_name("input")
                      .help("Input file (must exist)")
                      .value_of(input_file)
                      .value_name("FILE")
-                     .validate(argue::validators::file_exists()))
+                     .validate(argu::validators::file_exists()))
 
             // Output file (parent directory must exist)
-            .arg(argue::Arg("output")
+            .arg(argu::Arg("output")
                      .short_name('o')
                      .long_name("output")
                      .help("Output file")
@@ -37,31 +37,31 @@ int main(int argc, char *argv[]) {
                      .value_name("FILE"))
 
             // Port with range validation
-            .arg(argue::Arg("port")
+            .arg(argu::Arg("port")
                      .short_name('p')
                      .long_name("port")
                      .help("Server port (1024-65535)")
                      .value_of(port)
                      .default_value("8080")
-                     .validate(argue::validators::range(1024, 65535)))
+                     .validate(argu::validators::range(1024, 65535)))
 
             // Email validation
-            .arg(argue::Arg("email")
+            .arg(argu::Arg("email")
                      .short_name('e')
                      .long_name("email")
                      .help("Contact email address")
                      .value_of(email)
-                     .validate(argue::validators::email()))
+                     .validate(argu::validators::email()))
 
             // Counting flag (-v, -vv, -vvv)
-            .arg(argue::Arg("verbosity")
+            .arg(argu::Arg("verbosity")
                      .short_name('v')
                      .long_name("verbose")
                      .help("Increase verbosity (can be repeated)")
                      .count(verbosity))
 
             // Choices constraint
-            .arg(argue::Arg("log-level")
+            .arg(argu::Arg("log-level")
                      .short_name('l')
                      .long_name("log-level")
                      .help("Log level")
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
                      .default_value("info"))
 
             // Environment variable fallback
-            .arg(argue::Arg("config")
+            .arg(argu::Arg("config")
                      .long_name("config")
                      .help("Config file path (or set ARGUE_CONFIG env var)")
                      .env("ARGUE_CONFIG")

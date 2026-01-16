@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-namespace argue {
+namespace argu {
 
     /// Exit codes for argument parsing
     enum class ExitCode : int {
@@ -17,7 +17,7 @@ namespace argue {
         ConfigError = 78,
     };
 
-    /// Base class for all argue errors
+    /// Base class for all argu errors
     class Error : public std::exception {
       public:
         explicit Error(std::string message, ExitCode code = ExitCode::UsageError)
@@ -156,4 +156,4 @@ namespace argue {
         explicit VersionRequested(std::string version_text) : Error(std::move(version_text), ExitCode::Success) {}
     };
 
-} // namespace argue
+} // namespace argu

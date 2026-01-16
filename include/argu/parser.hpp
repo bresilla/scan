@@ -3,16 +3,16 @@
 /// @file parser.hpp
 /// @brief Argument parsing implementation
 
-#include <argue/arg.hpp>
-#include <argue/command.hpp>
-#include <argue/error.hpp>
+#include <argu/arg.hpp>
+#include <argu/command.hpp>
+#include <argu/error.hpp>
 
 #include <algorithm>
 #include <cstdlib>
 #include <string>
 #include <vector>
 
-namespace argue {
+namespace argu {
 
     /// Internal parser implementation
     class Parser {
@@ -471,4 +471,4 @@ namespace argue {
         return parser.parse(args);
     }
 
-} // namespace argue
+} // namespace argu

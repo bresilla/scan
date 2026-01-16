@@ -3,7 +3,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
-#include <argue/argue.hpp>
+#include <argu/argu.hpp>
 #include <fstream>
 #include <filesystem>
 
@@ -31,11 +31,11 @@ TEST_SUITE("Argue File Validators") {
         ofs.close();
 
         std::string path;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("file")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("file")
                 .long_name("file")
                 .value_of(path)
-                .validate(argue::validators::file_exists()));
+                .validate(argu::validators::file_exists()));
 
         auto result = cmd.parse(make_args({"--file", temp_path.c_str()}));
         CHECK(result.success());
@@ -46,11 +46,11 @@ TEST_SUITE("Argue File Validators") {
 
     TEST_CASE("file_exists validator rejects missing file") {
         std::string path;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("file")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("file")
                 .long_name("file")
                 .value_of(path)
-                .validate(argue::validators::file_exists()));
+                .validate(argu::validators::file_exists()));
 
         auto result = cmd.parse(make_args({"--file", "/nonexistent/path/file.txt"}));
         CHECK_FALSE(result.success());
@@ -58,11 +58,11 @@ TEST_SUITE("Argue File Validators") {
 
     TEST_CASE("dir_exists validator accepts existing directory") {
         std::string path;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("dir")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("dir")
                 .long_name("dir")
                 .value_of(path)
-                .validate(argue::validators::dir_exists()));
+                .validate(argu::validators::dir_exists()));
 
         auto result = cmd.parse(make_args({"--dir", "/tmp"}));
         CHECK(result.success());
@@ -75,11 +75,11 @@ TEST_SUITE("Argue File Validators") {
         ofs.close();
 
         std::string path;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("dir")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("dir")
                 .long_name("dir")
                 .value_of(path)
-                .validate(argue::validators::dir_exists()));
+                .validate(argu::validators::dir_exists()));
 
         auto result = cmd.parse(make_args({"--dir", temp_path.c_str()}));
         CHECK_FALSE(result.success());
@@ -89,11 +89,11 @@ TEST_SUITE("Argue File Validators") {
 
     TEST_CASE("path_not_exists validator accepts non-existing path") {
         std::string path;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("out")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("out")
                 .long_name("out")
                 .value_of(path)
-                .validate(argue::validators::path_not_exists()));
+                .validate(argu::validators::path_not_exists()));
 
         auto result = cmd.parse(make_args({"--out", "/nonexistent/new_file.txt"}));
         CHECK(result.success());
@@ -101,11 +101,11 @@ TEST_SUITE("Argue File Validators") {
 
     TEST_CASE("path_not_exists validator rejects existing path") {
         std::string path;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("out")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("out")
                 .long_name("out")
                 .value_of(path)
-                .validate(argue::validators::path_not_exists()));
+                .validate(argu::validators::path_not_exists()));
 
         auto result = cmd.parse(make_args({"--out", "/tmp"}));
         CHECK_FALSE(result.success());
@@ -120,11 +120,11 @@ TEST_SUITE("Argue String Validators") {
 
     TEST_CASE("min_length validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::min_length(5)));
+                .validate(argu::validators::min_length(5)));
 
         SUBCASE("Accepts string meeting minimum") {
             auto result = cmd.parse(make_args({"--val", "hello"}));
@@ -139,11 +139,11 @@ TEST_SUITE("Argue String Validators") {
 
     TEST_CASE("max_length validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::max_length(5)));
+                .validate(argu::validators::max_length(5)));
 
         SUBCASE("Accepts string meeting maximum") {
             auto result = cmd.parse(make_args({"--val", "hello"}));
@@ -158,11 +158,11 @@ TEST_SUITE("Argue String Validators") {
 
     TEST_CASE("alphanumeric validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::alphanumeric()));
+                .validate(argu::validators::alphanumeric()));
 
         SUBCASE("Accepts alphanumeric string") {
             auto result = cmd.parse(make_args({"--val", "Hello123"}));
@@ -177,11 +177,11 @@ TEST_SUITE("Argue String Validators") {
 
     TEST_CASE("alphabetic validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::alphabetic()));
+                .validate(argu::validators::alphabetic()));
 
         SUBCASE("Accepts alphabetic string") {
             auto result = cmd.parse(make_args({"--val", "HelloWorld"}));
@@ -196,11 +196,11 @@ TEST_SUITE("Argue String Validators") {
 
     TEST_CASE("numeric validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::numeric()));
+                .validate(argu::validators::numeric()));
 
         SUBCASE("Accepts numeric string") {
             auto result = cmd.parse(make_args({"--val", "12345"}));
@@ -222,11 +222,11 @@ TEST_SUITE("Argue Network Validators") {
 
     TEST_CASE("email validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("email")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("email")
                 .long_name("email")
                 .value_of(val)
-                .validate(argue::validators::email()));
+                .validate(argu::validators::email()));
 
         SUBCASE("Accepts valid email") {
             auto result = cmd.parse(make_args({"--email", "user@example.com"}));
@@ -246,11 +246,11 @@ TEST_SUITE("Argue Network Validators") {
 
     TEST_CASE("url validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("url")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("url")
                 .long_name("url")
                 .value_of(val)
-                .validate(argue::validators::url()));
+                .validate(argu::validators::url()));
 
         SUBCASE("Accepts http URL") {
             auto result = cmd.parse(make_args({"--url", "http://example.com"}));
@@ -270,11 +270,11 @@ TEST_SUITE("Argue Network Validators") {
 
     TEST_CASE("ipv4 validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("ip")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("ip")
                 .long_name("ip")
                 .value_of(val)
-                .validate(argue::validators::ipv4()));
+                .validate(argu::validators::ipv4()));
 
         SUBCASE("Accepts valid IPv4") {
             auto result = cmd.parse(make_args({"--ip", "192.168.1.1"}));
@@ -306,14 +306,14 @@ TEST_SUITE("Argue Composite Validators") {
 
     TEST_CASE("all_of validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::all_of({
-                    argue::validators::min_length(3),
-                    argue::validators::max_length(10),
-                    argue::validators::alphanumeric()
+                .validate(argu::validators::all_of({
+                    argu::validators::min_length(3),
+                    argu::validators::max_length(10),
+                    argu::validators::alphanumeric()
                 })));
 
         SUBCASE("Accepts value passing all validators") {
@@ -334,13 +334,13 @@ TEST_SUITE("Argue Composite Validators") {
 
     TEST_CASE("any_of validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::any_of({
-                    argue::validators::email(),
-                    argue::validators::ipv4()
+                .validate(argu::validators::any_of({
+                    argu::validators::email(),
+                    argu::validators::ipv4()
                 })));
 
         SUBCASE("Accepts email") {
@@ -361,11 +361,11 @@ TEST_SUITE("Argue Composite Validators") {
 
     TEST_CASE("predicate validator") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val")
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val")
                 .long_name("val")
                 .value_of(val)
-                .validate(argue::validators::predicate(
+                .validate(argu::validators::predicate(
                     [](const std::string& s) { return s.find("test") != std::string::npos; },
                     "value must contain 'test'"
                 )));
@@ -389,15 +389,15 @@ TEST_SUITE("Argue Composite Validators") {
 TEST_SUITE("Argue Edge Cases") {
 
     TEST_CASE("Empty command name") {
-        auto cmd = argue::Command("");
+        auto cmd = argu::Command("");
         auto result = cmd.parse(make_args({}));
         CHECK(result.success());
     }
 
     TEST_CASE("Very long argument value") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val").long_name("val").value_of(val));
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val").long_name("val").value_of(val));
 
         std::string long_value(10000, 'x');
         auto result = cmd.parse(std::vector<std::string>{"--val", long_value});
@@ -407,8 +407,8 @@ TEST_SUITE("Argue Edge Cases") {
 
     TEST_CASE("Argument with special characters") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val").long_name("val").value_of(val));
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val").long_name("val").value_of(val));
 
         auto result = cmd.parse(make_args({"--val", "hello\tworld\nwith\rspecial"}));
         CHECK(result.success());
@@ -416,8 +416,8 @@ TEST_SUITE("Argue Edge Cases") {
 
     TEST_CASE("Unicode in argument value") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val").long_name("val").value_of(val));
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val").long_name("val").value_of(val));
 
         auto result = cmd.parse(make_args({"--val", "Hello 世界 🌍"}));
         CHECK(result.success());
@@ -426,8 +426,8 @@ TEST_SUITE("Argue Edge Cases") {
 
     TEST_CASE("Multiple equals signs in value") {
         std::string val;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val").long_name("val").value_of(val));
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val").long_name("val").value_of(val));
 
         auto result = cmd.parse(make_args({"--val=key=value=extra"}));
         CHECK(result.success());
@@ -436,8 +436,8 @@ TEST_SUITE("Argue Edge Cases") {
 
     TEST_CASE("Empty value with equals") {
         std::string val = "default";
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("val").long_name("val").value_of(val));
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("val").long_name("val").value_of(val));
 
         auto result = cmd.parse(make_args({"--val="}));
         CHECK(result.success());
@@ -447,8 +447,8 @@ TEST_SUITE("Argue Edge Cases") {
     TEST_CASE("Numeric edge cases") {
         SUBCASE("Max int") {
             int val = 0;
-            auto cmd = argue::Command("test")
-                .arg(argue::Arg("n").long_name("n").value_of(val));
+            auto cmd = argu::Command("test")
+                .arg(argu::Arg("n").long_name("n").value_of(val));
 
             cmd.parse(make_args({"--n", "2147483647"}));
             CHECK(val == 2147483647);
@@ -456,9 +456,9 @@ TEST_SUITE("Argue Edge Cases") {
 
         SUBCASE("Min int") {
             int val = 0;
-            auto cmd = argue::Command("test")
+            auto cmd = argu::Command("test")
                 .allow_negative_numbers(true)
-                .arg(argue::Arg("n").long_name("n").value_of(val));
+                .arg(argu::Arg("n").long_name("n").value_of(val));
 
             cmd.parse(make_args({"--n", "-2147483648"}));
             CHECK(val == -2147483648);
@@ -466,8 +466,8 @@ TEST_SUITE("Argue Edge Cases") {
 
         SUBCASE("Zero") {
             int val = 99;
-            auto cmd = argue::Command("test")
-                .arg(argue::Arg("n").long_name("n").value_of(val));
+            auto cmd = argu::Command("test")
+                .arg(argu::Arg("n").long_name("n").value_of(val));
 
             cmd.parse(make_args({"--n", "0"}));
             CHECK(val == 0);
@@ -476,8 +476,8 @@ TEST_SUITE("Argue Edge Cases") {
 
     TEST_CASE("Boolean parsing edge cases") {
         bool val = false;
-        auto cmd = argue::Command("test")
-            .arg(argue::Arg("b").long_name("b").value_of(val));
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("b").long_name("b").value_of(val));
 
         SUBCASE("yes") {
             cmd.parse(make_args({"--b", "yes"}));
@@ -511,20 +511,20 @@ TEST_SUITE("Argue Edge Cases") {
 TEST_SUITE("Argue Help Text") {
 
     TEST_CASE("Help includes version") {
-        auto cmd = argue::Command("myapp").version("2.5.0");
+        auto cmd = argu::Command("myapp").version("2.5.0");
         auto result = cmd.parse(make_args({"--help"}));
         CHECK(result.message().find("2.5.0") != std::string::npos);
     }
 
     TEST_CASE("Help includes description") {
-        auto cmd = argue::Command("myapp").about("My awesome application");
+        auto cmd = argu::Command("myapp").about("My awesome application");
         auto result = cmd.parse(make_args({"--help"}));
         CHECK(result.message().find("My awesome application") != std::string::npos);
     }
 
     TEST_CASE("Help includes argument help text") {
-        auto cmd = argue::Command("myapp")
-            .arg(argue::Arg("input")
+        auto cmd = argu::Command("myapp")
+            .arg(argu::Arg("input")
                 .long_name("input")
                 .help("The input file to process"));
 
@@ -533,8 +533,8 @@ TEST_SUITE("Argue Help Text") {
     }
 
     TEST_CASE("Help includes choices") {
-        auto cmd = argue::Command("myapp")
-            .arg(argue::Arg("format")
+        auto cmd = argu::Command("myapp")
+            .arg(argu::Arg("format")
                 .long_name("format")
                 .choices({"json", "xml", "csv"}));
 
@@ -545,8 +545,8 @@ TEST_SUITE("Argue Help Text") {
     }
 
     TEST_CASE("Help includes default value") {
-        auto cmd = argue::Command("myapp")
-            .arg(argue::Arg("port")
+        auto cmd = argu::Command("myapp")
+            .arg(argu::Arg("port")
                 .long_name("port")
                 .default_value("8080"));
 
@@ -555,9 +555,9 @@ TEST_SUITE("Argue Help Text") {
     }
 
     TEST_CASE("Hidden arguments not in help") {
-        auto cmd = argue::Command("myapp")
-            .arg(argue::Arg("visible").long_name("visible").help("Visible option"))
-            .arg(argue::Arg("hidden").long_name("hidden").help("Hidden option").hidden());
+        auto cmd = argu::Command("myapp")
+            .arg(argu::Arg("visible").long_name("visible").help("Visible option"))
+            .arg(argu::Arg("hidden").long_name("hidden").help("Hidden option").hidden());
 
         auto result = cmd.parse(make_args({"--help"}));
         CHECK(result.message().find("visible") != std::string::npos);
