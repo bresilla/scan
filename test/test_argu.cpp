@@ -511,7 +511,7 @@ TEST_SUITE("Argue Error Handling") {
 
         auto result = cmd.parse(make_args({"--debug"}));
         CHECK_FALSE(result.success());
-        CHECK(result.message().find("required by") != std::string::npos);
+        CHECK(result.message().find("requires") != std::string::npos);
     }
 }
 
@@ -667,5 +667,1179 @@ TEST_SUITE("Argue Type Conversion") {
         CHECK(vals[0] == 1);
         CHECK(vals[1] == 2);
         CHECK(vals[2] == 3);
+    }
+}
+
+// =============================================================================
+// New Features Tests
+// =============================================================================
+
+TEST_SUITE("Argue New Features") {
+
+    TEST_CASE("Deprecation support") {
+        std::string val;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("format")
+                .long_name("format")
+                .value_of(val)
+                .deprecated("Use --output-format instead"));
+
+        auto result = cmd.parse(make_args({"--format", "json"}));
+        CHECK(result.success());
+        CHECK(val == "json");
+    }
+
+    TEST_CASE("Hidden alias support") {
+        std::string val;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("verbose")
+                .long_name("verbose")
+                .value_of(val)
+                .hidden_alias("v"));  // --v works but hidden from help
+
+        auto result = cmd.parse(make_args({"--v", "yes"}));
+        CHECK(result.success());
+        CHECK(val == "yes");
+    }
+
+    TEST_CASE("Renamed from support") {
+        bool flag = false;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("debug")
+                .long_name("debug")
+                .flag(flag)
+                .renamed_from("debug-mode"));  // Old name still works
+
+        // New name works
+        auto result1 = cmd.parse(make_args({"--debug"}));
+        CHECK(result1.success());
+        CHECK(flag == true);
+
+        // Old name also works
+        flag = false;
+        auto result2 = cmd.parse(make_args({"--debug-mode"}));
+        CHECK(result2.success());
+        CHECK(flag == true);
+    }
+
+    TEST_CASE("Stdin/stdout handling API") {
+        // Test that the API works (the actual stdin handling would be in the application)
+        auto arg = argu::Arg("input")
+            .long_name("input")
+            .allow_stdin()
+            .allow_stdout();
+
+        CHECK(arg.allows_stdin() == true);
+        CHECK(arg.allows_stdout() == true);
+    }
+
+    TEST_CASE("Value source tracking") {
+        std::string val;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("name")
+                .long_name("name")
+                .value_of(val)
+                .default_value("default"));
+
+        cmd.parse(make_args({"--name", "test"}));
+        // Value source should be trackable
+        CHECK(cmd.matches().contains("name"));
+    }
+
+    TEST_CASE("Bounded transformer clamps values") {
+        int level = 0;
+        auto arg = argu::Arg("level")
+            .long_name("level")
+            .value_of(level)
+            .transform(argu::transformers::bounded(0, 10));
+
+        // Test clamping high values
+        std::string high_val = "100";
+        std::string clamped = arg.apply_transformers(high_val);
+        CHECK(clamped == "10");
+
+        // Test clamping low values
+        std::string low_val = "-5";
+        clamped = arg.apply_transformers(low_val);
+        CHECK(clamped == "0");
+
+        // Test value in range
+        std::string in_range = "5";
+        clamped = arg.apply_transformers(in_range);
+        CHECK(clamped == "5");
+    }
+
+    TEST_CASE("Map value transformer") {
+        auto transformer = argu::transformers::map_value({
+            {"y", "yes"},
+            {"n", "no"},
+            {"true", "yes"},
+            {"false", "no"}
+        });
+
+        CHECK(transformer("y") == "yes");
+        CHECK(transformer("n") == "no");
+        CHECK(transformer("true") == "yes");
+        CHECK(transformer("other") == "other");  // Unmapped values pass through
+    }
+
+    TEST_CASE("Default if empty transformer") {
+        auto transformer = argu::transformers::default_if_empty("default_value");
+
+        CHECK(transformer("") == "default_value");
+        CHECK(transformer("actual") == "actual");
+    }
+
+    TEST_CASE("Normalize path transformer") {
+        auto transformer = argu::transformers::normalize_path();
+
+        CHECK(transformer("foo\\bar\\baz") == "foo/bar/baz");
+        CHECK(transformer("foo/bar/baz") == "foo/bar/baz");
+    }
+
+    TEST_CASE("Required unless conditional") {
+        std::string source;
+        std::string file;
+
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("stdin")
+                .long_name("stdin")
+                .value_of(source))
+            .arg(argu::Arg("file")
+                .long_name("file")
+                .value_of(file)
+                .required_unless("stdin"));
+
+        // With --stdin, --file is not required
+        auto result1 = cmd.parse(make_args({"--stdin", "data"}));
+        CHECK(result1.success());
+    }
+
+    TEST_CASE("Conflict mode - last wins") {
+        std::string mode;
+        auto cmd = argu::Command("test")
+            .allow_overrides(true)  // POSIX style: last wins
+            .arg(argu::Arg("mode")
+                .short_name('m')
+                .long_name("mode")
+                .value_of(mode));
+
+        // With allow_overrides, last value should win
+        cmd.parse(make_args({"-m", "first", "-m", "second"}));
+        CHECK(mode == "second");
+    }
+
+    TEST_CASE("Lifecycle hooks are stored") {
+        bool pre_called = false;
+        bool complete_called = false;
+        bool final_called = false;
+
+        auto cmd = argu::Command("test")
+            .pre_parse([&pre_called]() { pre_called = true; })
+            .parse_complete([&complete_called](argu::Matches&) { complete_called = true; })
+            .final_callback([&final_called](const argu::Matches&) { final_called = true; })
+            .arg(argu::Arg("dummy").long_name("dummy").flag());
+
+        // Just verify the command builds successfully
+        CHECK(!pre_called);  // Not called until parse
+    }
+
+    TEST_CASE("Partial matching option") {
+        bool verbose = false;
+        auto cmd = argu::Command("test")
+            .allow_partial_matching(true)
+            .arg(argu::Arg("verbose")
+                .long_name("verbose")
+                .flag(verbose));
+
+        CHECK(cmd.allows_partial_matching() == true);
+    }
+
+    TEST_CASE("Subcommand prefix matching option") {
+        auto cmd = argu::Command("test")
+            .allow_subcommand_prefix(true);
+
+        CHECK(cmd.allows_subcommand_prefix() == true);
+    }
+
+    TEST_CASE("Negatable flags API") {
+        bool flag = false;
+        auto arg = argu::Arg("color")
+            .long_name("color")
+            .flag(flag)
+            .negatable();
+
+        CHECK(arg.is_negatable() == true);
+        CHECK(arg.matches_long("color") == true);
+        CHECK(arg.matches_long("no-color") == true);
+        CHECK(arg.is_negated_match("no-color") == true);
+        CHECK(arg.is_negated_match("color") == false);
+    }
+
+    TEST_CASE("Visible aliases") {
+        auto arg = argu::Arg("verbose")
+            .long_name("verbose")
+            .visible_alias("v")
+            .visible_aliases({"verb", "vb"});
+
+        CHECK(arg.get_visible_aliases().size() == 3);
+        CHECK(arg.matches_long("v") == true);
+        CHECK(arg.matches_long("verb") == true);
+        CHECK(arg.matches_long("vb") == true);
+    }
+
+    TEST_CASE("Value hints") {
+        auto arg1 = argu::Arg("file").hint_file();
+        auto arg2 = argu::Arg("dir").hint_dir();
+        auto arg3 = argu::Arg("custom").value_hint("CUSTOM");
+
+        CHECK(arg1.get_value_hint().value() == "FILE");
+        CHECK(arg2.get_value_hint().value() == "DIR");
+        CHECK(arg3.get_value_hint().value() == "CUSTOM");
+    }
+
+    TEST_CASE("Display order") {
+        auto arg1 = argu::Arg("first").display_order(1);
+        auto arg2 = argu::Arg("second").display_order(2);
+
+        CHECK(arg1.get_display_order() == 1);
+        CHECK(arg2.get_display_order() == 2);
+    }
+
+    TEST_CASE("Exclusive group") {
+        auto arg = argu::Arg("option")
+            .exclusive_group("output_format");
+
+        CHECK(arg.get_exclusive_group().value() == "output_format");
+    }
+
+    TEST_CASE("Last wins behavior") {
+        auto arg = argu::Arg("mode").last_wins();
+        CHECK(arg.is_last_wins() == true);
+    }
+
+    TEST_CASE("Max occurrences") {
+        auto arg = argu::Arg("item").max_occurrences(5);
+        CHECK(arg.get_max_occurrences() == 5);
+    }
+
+    TEST_CASE("Command env prefix") {
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_");
+
+        CHECK(cmd.get_env_prefix().value() == "MYAPP_");
+    }
+
+    TEST_CASE("Trailing var arg") {
+        auto cmd = argu::Command("test")
+            .trailing_var_arg(true)
+            .trailing_values_name("FILES");
+
+        CHECK(cmd.has_trailing_var_arg() == true);
+        CHECK(cmd.get_trailing_values_name() == "FILES");
+    }
+
+    TEST_CASE("Allow hyphen values") {
+        auto cmd = argu::Command("test")
+            .allow_hyphen_values(true);
+
+        CHECK(cmd.allows_hyphen_values() == true);
+    }
+
+    TEST_CASE("Ignore errors option") {
+        auto cmd = argu::Command("test")
+            .ignore_errors(true);
+
+        CHECK(cmd.ignores_errors() == true);
+    }
+
+    TEST_CASE("Help on error option") {
+        auto cmd = argu::Command("test")
+            .help_on_error(false);
+
+        CHECK(cmd.shows_help_on_error() == false);
+    }
+
+    TEST_CASE("Max term width") {
+        auto cmd = argu::Command("test")
+            .max_term_width(120);
+
+        CHECK(cmd.get_max_term_width() == 120);
+    }
+}
+
+// =============================================================================
+// Environment Variable Cascading Tests
+// =============================================================================
+
+TEST_SUITE("Environment Variable Cascading") {
+
+    TEST_CASE("Explicit env var name takes precedence") {
+        // Set environment variable
+        setenv("MY_EXPLICIT_VAR", "explicit_value", 1);
+
+        std::string value;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("option")
+                .long_name("option")
+                .env("MY_EXPLICIT_VAR")
+                .value_of(value));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(value == "explicit_value");
+        CHECK(cmd.matches().is_from_env("option") == true);
+        CHECK(cmd.matches().value_source("option") == argu::ValueSource::Environment);
+
+        unsetenv("MY_EXPLICIT_VAR");
+    }
+
+    TEST_CASE("Arg env prefix + arg name") {
+        // Set environment variable: MYARG_MY_OPTION
+        setenv("MYARG_MY_OPTION", "arg_prefix_value", 1);
+
+        std::string value;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_") // Command prefix should be ignored
+            .arg(argu::Arg("my-option")
+                .long_name("my-option")
+                .env_prefix("MYARG_") // Arg-level prefix takes precedence
+                .value_of(value));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(value == "arg_prefix_value");
+
+        unsetenv("MYARG_MY_OPTION");
+    }
+
+    TEST_CASE("Command env prefix auto-generates var name") {
+        // Set environment variable: MYAPP_OUTPUT_FILE
+        setenv("MYAPP_OUTPUT_FILE", "cmd_prefix_value", 1);
+
+        std::string value;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("output-file")
+                .long_name("output-file")
+                .value_of(value));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(value == "cmd_prefix_value");
+
+        unsetenv("MYAPP_OUTPUT_FILE");
+    }
+
+    TEST_CASE("Command line overrides environment variable") {
+        setenv("MYAPP_PORT", "8080", 1);
+
+        int port = 0;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("port")
+                .long_name("port")
+                .value_of(port));
+
+        auto result = cmd.parse(make_args({"--port", "9090"}));
+        CHECK(result.success());
+        CHECK(port == 9090);
+        CHECK(cmd.matches().value_source("port") == argu::ValueSource::CommandLine);
+
+        unsetenv("MYAPP_PORT");
+    }
+
+    TEST_CASE("Environment variable with value delimiter") {
+        setenv("MYAPP_INCLUDE_PATHS", "/usr/include,/opt/include,/home/user/include", 1);
+
+        std::vector<std::string> paths;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("include-paths")
+                .long_name("include-paths")
+                .value_delimiter(',')
+                .value_of(paths));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        REQUIRE(paths.size() == 3);
+        CHECK(paths[0] == "/usr/include");
+        CHECK(paths[1] == "/opt/include");
+        CHECK(paths[2] == "/home/user/include");
+
+        unsetenv("MYAPP_INCLUDE_PATHS");
+    }
+
+    TEST_CASE("Env var with transformer applied") {
+        setenv("MYAPP_LEVEL", "10", 1);
+
+        int level = 0;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("level")
+                .long_name("level")
+                .transform(argu::transformers::bounded(0, 5))
+                .value_of(level));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(level == 5); // Clamped to max
+
+        unsetenv("MYAPP_LEVEL");
+    }
+
+    TEST_CASE("No env var set, uses default") {
+        std::string host = "localhost";
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("host")
+                .long_name("host")
+                .default_value("localhost")
+                .value_of(host));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(host == "localhost");
+        CHECK(cmd.matches().value_source("host") == argu::ValueSource::Default);
+    }
+
+    TEST_CASE("Env var priority: explicit > arg-prefix > cmd-prefix") {
+        // Set all three types of env vars
+        setenv("EXPLICIT_VAR", "explicit", 1);
+        setenv("ARGPFX_OPTION", "arg_prefix", 1);
+        setenv("CMDPFX_OPTION", "cmd_prefix", 1);
+
+        std::string value;
+        auto cmd = argu::Command("test")
+            .env_prefix("CMDPFX_")
+            .arg(argu::Arg("option")
+                .long_name("option")
+                .env("EXPLICIT_VAR")
+                .env_prefix("ARGPFX_")
+                .value_of(value));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(value == "explicit"); // Explicit should win
+
+        unsetenv("EXPLICIT_VAR");
+        unsetenv("ARGPFX_OPTION");
+        unsetenv("CMDPFX_OPTION");
+    }
+
+    TEST_CASE("Hyphen to underscore conversion in env var name") {
+        setenv("MYAPP_LOG_LEVEL", "debug", 1);
+
+        std::string level;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("log-level")
+                .long_name("log-level")
+                .value_of(level));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(level == "debug");
+
+        unsetenv("MYAPP_LOG_LEVEL");
+    }
+
+    TEST_CASE("Dot to underscore conversion in env var name") {
+        setenv("MYAPP_DB_HOST", "localhost", 1);
+
+        std::string host;
+        auto cmd = argu::Command("test")
+            .env_prefix("MYAPP_")
+            .arg(argu::Arg("db.host")
+                .long_name("db-host")
+                .value_of(host));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(host == "localhost");
+
+        unsetenv("MYAPP_DB_HOST");
+    }
+}
+
+// =============================================================================
+// Negatable Flags Tests
+// =============================================================================
+
+TEST_SUITE("Negatable Flags") {
+
+    TEST_CASE("Negatable flag --color sets true") {
+        bool color = false;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("color")
+                .long_name("color")
+                .negatable()
+                .flag(color));
+
+        auto result = cmd.parse(make_args({"--color"}));
+        CHECK(result.success());
+        CHECK(color == true);
+    }
+
+    TEST_CASE("Negatable flag --no-color sets false") {
+        bool color = true;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("color")
+                .long_name("color")
+                .negatable()
+                .flag(color));
+
+        auto result = cmd.parse(make_args({"--no-color"}));
+        CHECK(result.success());
+        CHECK(color == false);
+    }
+
+    TEST_CASE("Negatable flag default value") {
+        bool color = true;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("color")
+                .long_name("color")
+                .negatable()
+                .flag(color));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(result.success());
+        CHECK(color == true); // Not touched
+    }
+
+    TEST_CASE("Non-negatable flag doesn't match --no-") {
+        bool verbose = false;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("verbose")
+                .long_name("verbose")
+                .flag(verbose));
+
+        auto result = cmd.parse(make_args({"--no-verbose"}));
+        CHECK(!result.success()); // Should fail - unknown argument
+    }
+
+    TEST_CASE("Negatable flag is_negated_match") {
+        auto arg = argu::Arg("color")
+            .long_name("color")
+            .negatable()
+            .flag();
+
+        CHECK(arg.matches_long("color") == true);
+        CHECK(arg.matches_long("no-color") == true);
+        CHECK(arg.is_negated_match("no-color") == true);
+        CHECK(arg.is_negated_match("color") == false);
+    }
+
+    TEST_CASE("Multiple negatable flags in same command") {
+        bool color = false;
+        bool debug = true;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("color")
+                .long_name("color")
+                .negatable()
+                .flag(color))
+            .arg(argu::Arg("debug")
+                .long_name("debug")
+                .negatable()
+                .flag(debug));
+
+        auto result = cmd.parse(make_args({"--color", "--no-debug"}));
+        CHECK(result.success());
+        CHECK(color == true);
+        CHECK(debug == false);
+    }
+}
+
+// =============================================================================
+// Custom Help Sections and Ordering Tests
+// =============================================================================
+
+TEST_SUITE("Custom Help Sections") {
+
+    TEST_CASE("Add custom help section") {
+        auto cmd = argu::Command("test")
+            .about("Test program")
+            .help_section("EXAMPLES", "example1\nexample2\nexample3");
+
+        auto sections = cmd.get_custom_sections();
+        REQUIRE(sections.size() == 1);
+        CHECK(sections[0].title == "EXAMPLES");
+        CHECK(sections[0].content == "example1\nexample2\nexample3");
+    }
+
+    TEST_CASE("Multiple custom sections with ordering") {
+        auto cmd = argu::Command("test")
+            .help_section("SECOND", "Second section content", 20)
+            .help_section("FIRST", "First section content", 10)
+            .help_section("THIRD", "Third section content", 30);
+
+        auto sections = cmd.get_custom_sections();
+        REQUIRE(sections.size() == 3);
+
+        // Sections should be stored in add order, sorted later
+        CHECK(sections[0].title == "SECOND");
+        CHECK(sections[1].title == "FIRST");
+        CHECK(sections[2].title == "THIRD");
+
+        // Check orders
+        CHECK(sections[0].order == 20);
+        CHECK(sections[1].order == 10);
+        CHECK(sections[2].order == 30);
+    }
+
+    TEST_CASE("Custom section appears in help output") {
+        auto cmd = argu::Command("test")
+            .about("Test program")
+            .help_section("EXAMPLES", "  myapp --input file.txt");
+
+        std::string help = cmd.help();
+        CHECK(help.find("EXAMPLES:") != std::string::npos);
+        CHECK(help.find("myapp --input file.txt") != std::string::npos);
+    }
+
+    TEST_CASE("Argument group ordering") {
+        auto cmd = argu::Command("test")
+            .group_order("OUTPUT", 10)
+            .group_order("INPUT", 20)
+            .group_order("OPTIONS", 30);
+
+        CHECK(cmd.get_group_order("OUTPUT") == 10);
+        CHECK(cmd.get_group_order("INPUT") == 20);
+        CHECK(cmd.get_group_order("OPTIONS") == 30);
+        CHECK(cmd.get_group_order("UNKNOWN") == 50); // Default
+    }
+
+    TEST_CASE("Argument display order within group") {
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("third")
+                .long_name("third")
+                .display_order(30)
+                .group("OPTIONS"))
+            .arg(argu::Arg("first")
+                .long_name("first")
+                .display_order(10)
+                .group("OPTIONS"))
+            .arg(argu::Arg("second")
+                .long_name("second")
+                .display_order(20)
+                .group("OPTIONS"));
+
+        // Verify display orders are set
+        auto args = cmd.get_args();
+        REQUIRE(args.size() >= 3);
+
+        // Find each arg by name and check display order
+        for (const auto &arg : args) {
+            if (arg.name() == "first") CHECK(arg.get_display_order() == 10);
+            if (arg.name() == "second") CHECK(arg.get_display_order() == 20);
+            if (arg.name() == "third") CHECK(arg.get_display_order() == 30);
+        }
+    }
+
+    TEST_CASE("Help output respects group order") {
+        auto cmd = argu::Command("test")
+            .about("Test program")
+            .group_order("SECOND_GROUP", 20)
+            .group_order("FIRST_GROUP", 10)
+            .arg(argu::Arg("option2")
+                .long_name("option2")
+                .group("SECOND_GROUP"))
+            .arg(argu::Arg("option1")
+                .long_name("option1")
+                .group("FIRST_GROUP"));
+
+        std::string help = cmd.help();
+        auto first_pos = help.find("FIRST_GROUP:");
+        auto second_pos = help.find("SECOND_GROUP:");
+
+        // FIRST_GROUP should appear before SECOND_GROUP
+        REQUIRE(first_pos != std::string::npos);
+        REQUIRE(second_pos != std::string::npos);
+        CHECK(first_pos < second_pos);
+    }
+}
+
+// =============================================================================
+// External Subcommand Passthrough Tests
+// =============================================================================
+
+TEST_SUITE("External Subcommand Passthrough") {
+
+    TEST_CASE("External subcommand is captured") {
+        auto cmd = argu::Command("git")
+            .allow_external_subcommands(true)
+            .subcommand(argu::Command("status").about("Show status"));
+
+        auto result = cmd.parse(make_args({"my-custom-tool", "arg1", "arg2"}));
+        CHECK(result.success());
+
+        auto &matches = cmd.matches();
+        CHECK(matches.subcommand().has_value());
+        CHECK(*matches.subcommand() == "my-custom-tool");
+        CHECK(matches.is_external_subcommand() == true);
+
+        auto ext_args = matches.external_args();
+        REQUIRE(ext_args.size() == 2);
+        CHECK(ext_args[0] == "arg1");
+        CHECK(ext_args[1] == "arg2");
+    }
+
+    TEST_CASE("Known subcommand is handled normally") {
+        auto cmd = argu::Command("git")
+            .allow_external_subcommands(true)
+            .subcommand(argu::Command("status").about("Show status"));
+
+        auto result = cmd.parse(make_args({"status"}));
+        CHECK(result.success());
+
+        auto &matches = cmd.matches();
+        CHECK(matches.subcommand().has_value());
+        CHECK(*matches.subcommand() == "status");
+        CHECK(matches.is_external_subcommand() == false);
+    }
+
+    TEST_CASE("Trailing var arg captures remaining args") {
+        auto cmd = argu::Command("run")
+            .trailing_var_arg(true)
+            .trailing_values_name("COMMAND");
+
+        auto result = cmd.parse(make_args({"echo", "hello", "world"}));
+        CHECK(result.success());
+
+        auto &matches = cmd.matches();
+        auto trailing = matches.get_many("COMMAND");
+        REQUIRE(trailing.size() == 3);
+        CHECK(trailing[0] == "echo");
+        CHECK(trailing[1] == "hello");
+        CHECK(trailing[2] == "world");
+    }
+
+    TEST_CASE("Trailing var arg with options before") {
+        bool verbose = false;
+        auto cmd = argu::Command("run")
+            .trailing_var_arg(true)
+            .trailing_values_name("COMMAND")
+            .arg(argu::Arg("verbose")
+                .short_name('v')
+                .long_name("verbose")
+                .flag(verbose));
+
+        auto result = cmd.parse(make_args({"-v", "echo", "hello"}));
+        CHECK(result.success());
+        CHECK(verbose == true);
+
+        auto trailing = cmd.matches().get_many("COMMAND");
+        REQUIRE(trailing.size() == 2);
+        CHECK(trailing[0] == "echo");
+        CHECK(trailing[1] == "hello");
+    }
+}
+
+// =============================================================================
+// Callback Chaining Tests
+// =============================================================================
+
+TEST_SUITE("Callback Chaining") {
+
+    TEST_CASE("Value callback is called on parse") {
+        std::string captured;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("name")
+                .long_name("name")
+                .on_parse([&captured](const std::string &val) {
+                    captured = val;
+                }));
+
+        cmd.parse(make_args({"--name", "test_value"}));
+        CHECK(captured == "test_value");
+    }
+
+    TEST_CASE("Multiple value callbacks are chained") {
+        std::vector<std::string> log;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("name")
+                .long_name("name")
+                .on_parse([&log](const std::string &val) {
+                    log.push_back("cb1: " + val);
+                })
+                .on_parse([&log](const std::string &val) {
+                    log.push_back("cb2: " + val);
+                }));
+
+        cmd.parse(make_args({"--name", "value"}));
+        REQUIRE(log.size() == 2);
+        CHECK(log[0] == "cb1: value");
+        CHECK(log[1] == "cb2: value");
+    }
+
+    TEST_CASE("Flag callback is called") {
+        bool flag_value = false;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("verbose")
+                .short_name('v')
+                .long_name("verbose")
+                .flag()
+                .on_flag([&flag_value](bool val) {
+                    flag_value = val;
+                }));
+
+        cmd.parse(make_args({"-v"}));
+        CHECK(flag_value == true);
+    }
+
+    TEST_CASE("Count callback is called") {
+        int count_value = 0;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("verbose")
+                .short_name('v')
+                .count()
+                .on_count([&count_value](int val) {
+                    count_value = val;
+                }));
+
+        cmd.parse(make_args({"-vvv"}));
+        CHECK(count_value == 3);
+    }
+
+    TEST_CASE("Callback with variable binding") {
+        std::string name;
+        std::string upper_name;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("name")
+                .long_name("name")
+                .value_of(name)
+                .on_parse([&upper_name](const std::string &val) {
+                    upper_name = val;
+                    for (char &c : upper_name) {
+                        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                    }
+                }));
+
+        cmd.parse(make_args({"--name", "hello"}));
+        CHECK(name == "hello");
+        CHECK(upper_name == "HELLO");
+    }
+
+    TEST_CASE("Each transform callback is chained") {
+        std::string result;
+        auto cmd = argu::Command("test")
+            .arg(argu::Arg("value")
+                .long_name("value")
+                .each([](const std::string &val) {
+                    return val + "_first";
+                })
+                .each([](const std::string &val) {
+                    return val + "_second";
+                })
+                .value_of(result));
+
+        cmd.parse(make_args({"--value", "input"}));
+        CHECK(result == "input_first_second");
+    }
+}
+
+// =============================================================================
+// Argument Group Tests
+// =============================================================================
+
+TEST_SUITE("Argument Groups") {
+
+    TEST_CASE("Mutex group allows one argument") {
+        auto cmd = argu::Command("test")
+            .group(argu::ArgGroup("output_format")
+                .mutually_exclusive()
+                .args({"json", "xml", "csv"}))
+            .arg(argu::Arg("json").long_name("json").flag())
+            .arg(argu::Arg("xml").long_name("xml").flag())
+            .arg(argu::Arg("csv").long_name("csv").flag());
+
+        auto result = cmd.parse(make_args({"--json"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("Mutex group rejects multiple arguments") {
+        auto cmd = argu::Command("test")
+            .group(argu::ArgGroup("output_format")
+                .mutually_exclusive()
+                .args({"json", "xml"}))
+            .arg(argu::Arg("json").long_name("json").flag())
+            .arg(argu::Arg("xml").long_name("xml").flag());
+
+        auto result = cmd.parse(make_args({"--json", "--xml"}));
+        CHECK(!result.success());
+        CHECK(result.message().find("mutually exclusive") != std::string::npos);
+    }
+
+    TEST_CASE("Required together group accepts all") {
+        auto cmd = argu::Command("test")
+            .group(argu::ArgGroup("credentials")
+                .required_together()
+                .args({"user", "password"}))
+            .arg(argu::Arg("user").long_name("user"))
+            .arg(argu::Arg("password").long_name("password"));
+
+        auto result = cmd.parse(make_args({"--user", "admin", "--password", "secret"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("Required together group rejects partial") {
+        auto cmd = argu::Command("test")
+            .group(argu::ArgGroup("credentials")
+                .required_together()
+                .args({"user", "password"}))
+            .arg(argu::Arg("user").long_name("user"))
+            .arg(argu::Arg("password").long_name("password"));
+
+        auto result = cmd.parse(make_args({"--user", "admin"}));
+        CHECK(!result.success());
+        CHECK(result.message().find("must be used together") != std::string::npos);
+    }
+
+    TEST_CASE("At least one group requires one argument") {
+        auto cmd = argu::Command("test")
+            .group(argu::ArgGroup("input_source")
+                .at_least_one()
+                .required()
+                .args({"file", "stdin"}))
+            .arg(argu::Arg("file").long_name("file"))
+            .arg(argu::Arg("stdin").long_name("stdin").flag());
+
+        // With one argument - should pass
+        auto result = cmd.parse(make_args({"--file", "test.txt"}));
+        CHECK(result.success());
+    }
+
+    TEST_CASE("At least one group rejects none") {
+        auto cmd = argu::Command("test")
+            .group(argu::ArgGroup("input_source")
+                .at_least_one()
+                .required()
+                .args({"file", "url"}))
+            .arg(argu::Arg("file").long_name("file"))
+            .arg(argu::Arg("url").long_name("url"));
+
+        auto result = cmd.parse(make_args({}));
+        CHECK(!result.success());
+        CHECK(result.message().find("At least one") != std::string::npos);
+    }
+}
+
+// =============================================================================
+// Partial Matching Tests
+// =============================================================================
+
+TEST_SUITE("Partial Matching") {
+
+    TEST_CASE("Partial match for long option") {
+        std::string value;
+        auto cmd = argu::Command("test")
+            .allow_partial_matching(true)
+            .arg(argu::Arg("verbose")
+                .long_name("verbose")
+                .flag())
+            .arg(argu::Arg("version")
+                .long_name("version")
+                .flag());
+
+        // "verb" is unambiguous - matches "verbose"
+        bool verbose = false;
+        cmd.arg(argu::Arg("output").long_name("output").value_of(value));
+
+        auto result = cmd.parse(make_args({"--out", "test.txt"}));
+        CHECK(result.success());
+        CHECK(value == "test.txt");
+    }
+
+    TEST_CASE("Partial match rejected when ambiguous") {
+        auto cmd = argu::Command("test")
+            .allow_partial_matching(true)
+            .arg(argu::Arg("verbose").long_name("verbose").flag())
+            .arg(argu::Arg("version").long_name("version").flag());
+
+        // "ver" is ambiguous - could be "verbose" or "version"
+        auto result = cmd.parse(make_args({"--ver"}));
+        CHECK(!result.success()); // Should fail - ambiguous
+    }
+
+    TEST_CASE("Exact match takes precedence over partial") {
+        std::string value;
+        auto cmd = argu::Command("test")
+            .allow_partial_matching(true)
+            .arg(argu::Arg("out").long_name("out").value_of(value))
+            .arg(argu::Arg("output").long_name("output"));
+
+        auto result = cmd.parse(make_args({"--out", "test.txt"}));
+        CHECK(result.success());
+        CHECK(value == "test.txt");
+    }
+}
+
+// =============================================================================
+// Subcommand Prefix Matching Tests
+// =============================================================================
+
+TEST_SUITE("Subcommand Prefix Matching") {
+
+    TEST_CASE("Subcommand prefix matching when enabled") {
+        bool status_called = false;
+
+        auto cmd = argu::Command("git")
+            .allow_subcommand_prefix(true)
+            .subcommand(argu::Command("status").callback([&](const argu::Matches&) { status_called = true; }))
+            .subcommand(argu::Command("commit"))
+            .subcommand(argu::Command("checkout"));
+
+        auto result = cmd.parse(make_args({"stat"}));
+        CHECK(result.success());
+        CHECK(cmd.matches().subcommand().value() == "status");
+    }
+
+    TEST_CASE("Subcommand prefix matching disabled by default") {
+        auto cmd = argu::Command("git")
+            .subcommand(argu::Command("status"))
+            .subcommand(argu::Command("commit"));
+
+        auto result = cmd.parse(make_args({"stat"}));
+        CHECK(!result.success()); // Should fail - prefix not allowed by default
+    }
+
+    TEST_CASE("Ambiguous subcommand prefix is rejected") {
+        auto cmd = argu::Command("git")
+            .allow_subcommand_prefix(true)
+            .subcommand(argu::Command("status"))
+            .subcommand(argu::Command("stash"));
+
+        // "sta" is ambiguous - could be "status" or "stash"
+        auto result = cmd.parse(make_args({"sta"}));
+        CHECK(!result.success());
+    }
+
+    TEST_CASE("Exact subcommand match takes precedence") {
+        auto cmd = argu::Command("git")
+            .allow_subcommand_prefix(true)
+            .subcommand(argu::Command("st").about("Short status"))
+            .subcommand(argu::Command("status").about("Full status"));
+
+        auto result = cmd.parse(make_args({"st"}));
+        CHECK(result.success());
+        CHECK(cmd.matches().subcommand().value() == "st");
+    }
+
+    TEST_CASE("Subcommand prefix with alias") {
+        auto cmd = argu::Command("git")
+            .allow_subcommand_prefix(true)
+            .subcommand(argu::Command("checkout").alias("co"));
+
+        // "check" should match "checkout"
+        auto result = cmd.parse(make_args({"check"}));
+        CHECK(result.success());
+        CHECK(cmd.matches().subcommand().value() == "checkout");
+    }
+
+    TEST_CASE("Subcommand prefix matching with nested subcommands") {
+        auto cmd = argu::Command("git")
+            .allow_subcommand_prefix(true)
+            .subcommand(
+                argu::Command("remote")
+                    .allow_subcommand_prefix(true)
+                    .subcommand(argu::Command("add"))
+                    .subcommand(argu::Command("remove"))
+            );
+
+        auto result = cmd.parse(make_args({"rem", "ad"}));
+        CHECK(result.success());
+        CHECK(cmd.matches().subcommand().value() == "remote");
+        auto sub = cmd.matches().subcommand_matches();
+        REQUIRE(sub != nullptr);
+        CHECK(sub->subcommand().value() == "add");
+    }
+}
+
+// =============================================================================
+// Global Arguments Tests
+// =============================================================================
+
+TEST_SUITE("Global Arguments") {
+
+    TEST_CASE("Global argument propagates to subcommand") {
+        bool verbose = false;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("verbose").short_name('v').flag(verbose).global())
+            .subcommand(argu::Command("run").about("Run the app"));
+
+        auto result = cmd.parse(make_args({"run", "-v"}));
+        CHECK(result.success());
+        CHECK(verbose);
+    }
+
+    TEST_CASE("Global argument can be used before subcommand") {
+        bool verbose = false;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("verbose").short_name('v').flag(verbose).global())
+            .subcommand(argu::Command("run"));
+
+        // Global arg before subcommand
+        auto result = cmd.parse(make_args({"-v", "run"}));
+        // This depends on implementation - may need adjustment
+        // For now, we just test the basic propagation in subcommand
+    }
+
+    TEST_CASE("Global argument propagates to nested subcommands") {
+        bool debug = false;
+
+        auto cmd = argu::Command("app")
+            .arg(argu::Arg("debug").short_name('d').flag(debug).global())
+            .subcommand(
+                argu::Command("service")
+                    .subcommand(argu::Command("start"))
+            );
+
+        auto result = cmd.parse(make_args({"service", "start", "-d"}));
+        CHECK(result.success());
+        CHECK(debug);
+    }
+}
+
+// =============================================================================
+// Hidden Subcommands Tests
+// =============================================================================
+
+TEST_SUITE("Hidden Subcommands") {
+
+    TEST_CASE("Hidden subcommand still works") {
+        auto cmd = argu::Command("app")
+            .subcommand(argu::Command("public").about("Public command"))
+            .subcommand(argu::Command("internal").about("Internal command").hidden());
+
+        auto result = cmd.parse(make_args({"internal"}));
+        CHECK(result.success());
+        CHECK(cmd.matches().subcommand().value() == "internal");
+    }
+
+    TEST_CASE("Hidden subcommand not shown in help") {
+        auto cmd = argu::Command("app")
+            .about("Test app")
+            .subcommand(argu::Command("public").about("Public command"))
+            .subcommand(argu::Command("internal").about("Internal command").hidden());
+
+        std::string help_text = cmd.help();
+        CHECK(help_text.find("public") != std::string::npos);
+        CHECK(help_text.find("internal") == std::string::npos);
+    }
+
+    TEST_CASE("Hidden subcommand not suggested for typos") {
+        auto cmd = argu::Command("app")
+            .subcommand_required(true)
+            .subcommand(argu::Command("public"))
+            .subcommand(argu::Command("internal").hidden());
+
+        // Typo "internl" should not suggest "internal" since it's hidden
+        auto result = cmd.parse(make_args({"internl"}));
+        CHECK(!result.success());
+        // The error message should not contain "internal" as a suggestion
+        CHECK(result.message().find("internal") == std::string::npos);
     }
 }

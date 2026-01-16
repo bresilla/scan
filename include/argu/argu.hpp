@@ -1,55 +1,93 @@
 #pragma once
 
-/// @file argu.hpp
-/// @brief Main include file for the Argu argument parsing library
+/// @file argu/argu.hpp
+/// @brief Main include file for the argu argument parsing library
 ///
-/// Argu is a modern C++20 header-only command-line argument parsing library
-/// inspired by Rust's CLAP and CLI11, designed to work seamlessly with Scan.
+/// argu - A modern, feature-complete C++20 argument parsing library
+/// Inspired by CLAP (Rust) and CLI11 (C++)
 ///
-/// Usage:
-///   #include <argu/argu.hpp>
+/// Features:
+/// - CLAP-style builder API
+/// - Deep nested subcommand chains (git remote add style)
+/// - Automatic help generation with color support
+/// - Shell completion generation (Bash, Zsh, Fish, PowerShell, Elvish)
+/// - Typo suggestions using Levenshtein distance
+/// - Argument groups (mutually exclusive, required together)
+/// - Config file support (INI/TOML/JSON)
+/// - Environment variable support
+/// - Rich validators and transformers
+/// - Direct variable binding
 ///
-///   int main(int argc, char* argv[]) {
-///       std::string name;
-///       int count = 1;
-///       bool verbose = false;
+/// Example:
+/// @code
+/// #include <argu/argu.hpp>
 ///
-///       auto cmd = argu::Command("myapp")
-///           .version("1.0.0")
-///           .about("My awesome application")
-///           .arg(argu::Arg("name")
-///               .help("Your name")
-///               .required())
-///           .arg(argu::Arg("count")
-///               .short_name('c')
-///               .long_name("count")
-///               .help("Number of times")
-///               .value_of(count)
-///               .default_value("1"))
-///           .arg(argu::Arg("verbose")
-///               .short_name('v')
-///               .long_name("verbose")
-///               .help("Enable verbose output")
-///               .flag(verbose));
+/// int main(int argc, char* argv[]) {
+///     bool verbose = false;
+///     std::string output;
+///     std::vector<std::string> files;
 ///
-///       auto result = cmd.parse(argc, argv);
-///       if (!result) {
-///           return result.exit_code();
-///       }
+///     auto cmd = argu::Command("myapp")
+///         .version("1.0.0")
+///         .about("My awesome application")
+///         .arg(argu::Arg("verbose")
+///             .short_name('v')
+///             .long_name("verbose")
+///             .help("Enable verbose output")
+///             .flag(verbose))
+///         .arg(argu::Arg("output")
+///             .short_name('o')
+///             .long_name("output")
+///             .help("Output file path")
+///             .value_name("FILE")
+///             .value_of(output)
+///             .validate(argu::validators::parent_exists()))
+///         .arg(argu::Arg("files")
+///             .help("Input files to process")
+///             .positional()
+///             .takes_one_or_more()
+///             .required()
+///             .value_of(files));
 ///
-///       // Use name, count, verbose...
-///   }
+///     auto result = cmd.parse(argc, argv);
+///     if (!result) return result.exit();
+///
+///     // Use verbose, output, files...
+///     return 0;
+/// }
+/// @endcode
 
-#include <argu/arg.hpp>
-#include <argu/command.hpp>
-#include <argu/error.hpp>
-#include <argu/help.hpp>
-#include <argu/parser.hpp>
-#include <argu/validators.hpp>
+// Core types and utilities
+#include <argu/core/arg.hpp>
+#include <argu/core/command.hpp>
+#include <argu/core/error.hpp>
+#include <argu/core/group.hpp>
+#include <argu/core/levenshtein.hpp>
+#include <argu/core/types.hpp>
+#include <argu/core/validators.hpp>
+
+// Style and formatting
+#include <argu/style/colors.hpp>
+#include <argu/style/help_formatter.hpp>
+
+// Completion generation
+#include <argu/completion/completions.hpp>
+#include <argu/completion/generator.hpp>
+
+// Config file support
+#include <argu/config/config_parser.hpp>
+
+// Parser (must be last as it implements Command methods)
+#include <argu/core/parser.hpp>
 
 namespace argu {
 
     /// Library version
-    inline constexpr const char *version = "0.1.0";
+    constexpr const char *VERSION = "2.0.0";
+
+    /// Library version components
+    constexpr int VERSION_MAJOR = 2;
+    constexpr int VERSION_MINOR = 0;
+    constexpr int VERSION_PATCH = 0;
 
 } // namespace argu
