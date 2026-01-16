@@ -169,46 +169,24 @@ See the `examples/` directory:
 ```
 examples/
 ├── scan_*.cpp        # Terminal UI examples
-├── argu_basic.cpp    # Basic argument parsing
-├── argu_subcommands.cpp  # Subcommand demo
-├── argu_validators.cpp   # Validator showcase
-├── argu_advanced.cpp     # Advanced features
-├── argu_kubectl.cpp      # kubectl-style deep nesting
-└── argu_docker.cpp       # Docker-style external subcommands
+└── argu_*.cpp        # Argument parsing examples
 ```
 
 ## Tests
 
 220 tests covering both libraries:
 
-```bash
-./build/test/test_argu           # 162 tests
-./build/test/test_argu_validators # 58 tests
 ```
+test/
+├── test_scan.cpp        # Terminal UI tests
+└── test_argu.cpp        # Argument parsing tests
+```
+
 
 ## Requirements
 
 - **C++20** compiler (GCC 11+, Clang 14+, MSVC 2022+)
 - **[Echo](https://github.com/bresilla/echo)** - Terminal utilities (fetched automatically)
-
-## Comparison
-
-### argu:: vs Other Libraries
-
-| Feature | argu | CLI11 | cxxopts | CLAP |
-|---------|------|-------|---------|------|
-| Header-only | Yes | Yes | Yes | N/A |
-| Subcommands | Yes | Yes | No | Yes |
-| Deep nesting | Yes | Yes | No | Yes |
-| Prefix matching | Yes | No | No | Yes |
-| Config files | Yes | Yes | No | Yes |
-| Shell completions | Yes | No | No | Yes |
-| Colored help | Yes | No | No | Yes |
-| Typo suggestions | Yes | No | No | Yes |
-| Duration parsing | Yes | No | No | Yes |
-| Size parsing | Yes | No | No | No |
-
-**argu:: matches or exceeds CLAP's features while being header-only C++20.**
 
 ## License
 
