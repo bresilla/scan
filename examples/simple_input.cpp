@@ -1,17 +1,18 @@
 /// @file simple_input.cpp
 /// @brief Simple example showing basic TextInput usage
 
-#include <scan/scan.hpp>
 #include <iostream>
+#include <scan/scan.hpp>
 
 int main() {
     std::cout << "Simple Input Example\n\n";
 
     // Basic text input
     auto name = scan::TextInput()
-        .prompt("Name: ")
-        .placeholder("Enter your name")
-        .run();
+                    .prompt("Name: ")
+                    .prompt_color(0, 255, 255) // Cyan
+                    .placeholder("Enter your name")
+                    .run();
 
     if (name) {
         std::cout << "Hello, " << *name << "!\n";
