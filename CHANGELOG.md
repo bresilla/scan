@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.10] - 2026-01-18
+
+### <!-- 7 -->⚙️ Miscellaneous Tasks
+
+- Migrate from Xmake to CMake
+
 ## [0.0.5] - 2026-01-16
 
 ### <!-- 7 -->⚙️ Miscellaneous Tasks

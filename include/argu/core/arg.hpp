@@ -551,7 +551,9 @@ namespace argu {
         const std::vector<std::string> &get_required_unless() const { return m_required_unless; }
         const std::vector<std::pair<std::string, std::string>> &get_required_if_eq() const { return m_required_if_eq; }
         const std::vector<std::pair<std::string, std::string>> &get_requires_if() const { return m_requires_if; }
-        const std::vector<std::tuple<std::string, std::string, std::string>> &get_default_value_if() const { return m_default_value_if; }
+        const std::vector<std::tuple<std::string, std::string, std::string>> &get_default_value_if() const {
+            return m_default_value_if;
+        }
         const std::vector<Validator> &get_validators() const { return m_validators; }
         const std::vector<Transformer> &get_transformers() const { return m_transformers; }
         const Completer &get_completer() const { return m_completer; }
