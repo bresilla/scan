@@ -73,10 +73,22 @@ namespace argu {
 
                 return ParseResult();
             } catch (const HelpRequested &e) {
+                if (m_cmd.m_auto_exit) {
+                    std::cout << e.message() << std::endl;
+                    std::exit(0);
+                }
                 return ParseResult(true, 0, e.message());
             } catch (const VersionRequested &e) {
+                if (m_cmd.m_auto_exit) {
+                    std::cout << e.message() << std::endl;
+                    std::exit(0);
+                }
                 return ParseResult(true, 0, e.message());
             } catch (const CompletionRequested &e) {
+                if (m_cmd.m_auto_exit) {
+                    std::cout << e.message() << std::endl;
+                    std::exit(0);
+                }
                 return ParseResult(true, 0, e.message());
             } catch (const AggregatedErrors &e) {
                 return ParseResult(e);
