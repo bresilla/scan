@@ -43,7 +43,11 @@ namespace argu {
         /// Get error message
         const std::string &message() const { return m_message; }
 
-        /// Print error to stderr and return exit code
+        /// Check if program should exit (error, help, or version requested)
+        /// Usage: if (result.should_exit()) return result.exit();
+        bool should_exit() const { return !m_success || !m_message.empty(); }
+
+        /// Print message and return exit code (errors to stderr, help/version to stdout)
         int exit() const {
             if (!m_success && !m_message.empty()) {
                 std::cerr << m_message << std::endl;
@@ -332,6 +336,12 @@ namespace argu {
         /// Set to propagate version to subcommands
         Command &propagate_version(bool propagate = true) {
             m_propagate_version = propagate;
+            return *this;
+        }
+
+        /// Automatically print and exit for --help/--version (no manual check needed)
+        Command &auto_exit(bool enable = true) {
+            m_auto_exit = enable;
             return *this;
         }
 
@@ -665,6 +675,7 @@ namespace argu {
         bool m_ignore_errors = false;
         bool m_help_on_error = true;
         bool m_hidden = false;
+        bool m_auto_exit = false;
         ErrorMode m_error_mode = ErrorMode::FirstError;
 
         void add_default_help() {

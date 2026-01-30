@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.11] - 2026-01-30
+
+### <!-- 0 -->⛰️  Features
+
+- Add automatic exit handling for help/version
+
 ## [0.0.10] - 2026-01-18
 
 ### <!-- 7 -->⚙️ Miscellaneous Tasks
